@@ -1,4 +1,19 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        maven {
+            url "https://repo.dairy.foundation/releases"
+        }
+        google()
+    }
+    dependencies {
+        classpath "dev.frozenmilk:Load:0.3.1"
+    }
+}
+
+
 apply plugin: 'com.android.application'
+apply plugin: 'dev.frozenmilk.sinister.sloth.load'
 
 //
 // build.gradle in TeamCode
