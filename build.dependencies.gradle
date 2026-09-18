@@ -1,7 +1,10 @@
 repositories {
     mavenCentral()
     google() // Needed for androidx
-    maven { url 'https://repo.dairy.foundation/releases/'}
+    maven {
+        url 'https://repo.dairy.foundation/releases/'
+//        url = "https://mymaven.bylazar.com/releases"
+    }
 }
 
 dependencies {
@@ -18,8 +21,10 @@ dependencies {
 
     implementation 'com.pedropathing:revhub:3.0.0'//pedro
     implementation 'com.pedropathing:tuning:1.0.0'//pedro
+    implementation 'com.pedropathing.ivy:pedro:1.1.1'
     //implementation("com.acmerobotics.slothboard:dashboard:0.3.1+0.6.0")//dashboard
-    implementation("com.bylazar.sloth:fullpanels:0.3.1+1.0.13")//panels
+    implementation("com.bylazar.sloth:fullpanels:0.3.1+1.0.13")//sloth+panels
+    //implementation("com.bylazar:docs:1.0.5")//panels
     implementation("dev.frozenmilk.sinister:Sloth:0.3.1")//sloth
 }
 
