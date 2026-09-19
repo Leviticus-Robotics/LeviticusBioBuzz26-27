@@ -7,4 +7,5 @@ public class ConfigNames {
     public static String FR = "FR";
     public static String BL = "BL";
     public static String BR = "BR";
+    public static String OCTOQUAD = "octoquad";
 }

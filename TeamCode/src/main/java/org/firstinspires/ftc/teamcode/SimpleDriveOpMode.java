@@ -16,7 +16,7 @@ public class SimpleDriveOpMode extends OpMode {
     Pose robotPose;
     @Override
     public void init() {
-//        follower = Constants.create(hardwareMap);
+        follower = Constants.create(hardwareMap);
     }
 
     @Override
@@ -26,15 +26,15 @@ public class SimpleDriveOpMode extends OpMode {
         }
 
         if(!fieldCentric) {
-            double forward = gamepad1.left_stick_y;
-            double lateral = gamepad1.left_stick_x;
+            double forward = -gamepad1.left_stick_y;
+            double lateral = -gamepad1.left_stick_x;
             double rotation = gamepad1.right_stick_x;
             follower.manual(forward, lateral, rotation);
         } else{
              powers = ManualDrive.fieldCentric(
-                    gamepad1.left_stick_y,
-                    gamepad1.left_stick_x,
-                    gamepad1.right_stick_x,
+                    -gamepad1.left_stick_y,
+                    -gamepad1.left_stick_x,
+                    -gamepad1.right_stick_x,
                     follower.pose().heading()
             );
             follower.manual(powers);
