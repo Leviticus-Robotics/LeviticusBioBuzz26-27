@@ -37,8 +37,8 @@ public class Constants {
         c.xPodPort.set(0);
         c.yPodPort.set(1);
         c.ticksPerUnit.set(505.316944406);
-        c.xPodOffset.set(-2.204724409448819);
-        c.yPodOffset.set(-5.787401574803149);
+        c.xPodOffset.set(-1.6929133858267715);//-2.204724409448819
+        c.yPodOffset.set(-5.787401574803149);//-5.787401574803149
         c.xPodDirection.set(OctoQuad.EncoderDirection.FORWARD);
         c.yPodDirection.set(OctoQuad.EncoderDirection.REVERSE);
         c.globalDistanceUnit.set(DistanceUnit.INCH);
