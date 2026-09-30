@@ -10,13 +10,14 @@ import com.pedropathing.revhub.drivetrains.Mecanum;
 import com.pedropathing.revhub.drivetrains.MecanumConfig;
 import com.pedropathing.revhub.localizers.OctoQuadConfig;
 import com.pedropathing.revhub.localizers.OctoQuadLocalizer;
-import com.pedropathing.revhub.localizers.PinpointLocalizer;
 import com.qualcomm.hardware.digitalchickenlabs.OctoQuad;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.teamcode.util.ConfigNames;
 
+import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
 
 public class Constants {
     public static MecanumConfig driveConfig = new MecanumConfig(
@@ -36,7 +37,7 @@ public class Constants {
         c.name.set(ConfigNames.OCTOQUAD);
         c.xPodPort.set(0);
         c.yPodPort.set(1);
-        c.ticksPerUnit.set(505.316944406);
+        c.ticksPerUnit.set(505.316944406 * 48/47.5);
         c.xPodOffset.set(-1.6929133858267715);//-2.204724409448819
         c.yPodOffset.set(-5.787401574803149);//-5.787401574803149
         c.xPodDirection.set(OctoQuad.EncoderDirection.FORWARD);
@@ -81,6 +82,16 @@ public class Constants {
 
     public static Follower create(HardwareMap h) {
         return new Follower(
+                new OctoQuadLocalizer(h, localizerConfig),
+                new Mecanum(h, driveConfig),
+                new Foresight(foresightConfig)
+        );
+    }
+
+
+
+    public static MercurialFollower createMercurial(HardwareMap h) {
+        return new MercurialFollower(
                 new OctoQuadLocalizer(h, localizerConfig),
                 new Mecanum(h, driveConfig),
                 new Foresight(foresightConfig)

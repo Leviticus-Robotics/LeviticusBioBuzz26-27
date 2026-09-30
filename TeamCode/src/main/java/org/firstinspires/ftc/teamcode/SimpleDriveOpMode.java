@@ -13,6 +13,8 @@ import com.pedropathing.follower.ManualDrive;
 import com.seattlesolvers.solverslib.hardware.motors.Motor;
 import com.seattlesolvers.solverslib.hardware.motors.MotorEx;
 
+import org.firstinspires.ftc.teamcode.util.ConfigNames;
+
 import java.util.concurrent.TimeUnit;
 
 

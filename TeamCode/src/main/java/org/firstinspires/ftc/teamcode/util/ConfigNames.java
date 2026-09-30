@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.util;
 //import com.bylazar.config.annotations.Configurable;
 
 import com.acmerobotics.dashboard.config.Config;
@@ -11,4 +11,5 @@ public class ConfigNames {
     public static String BR = "BR";
     public static String OCTOQUAD = "octoquad";
     public static String testMotor = "intake";
+    public static String shooter = "shooter";
 }
