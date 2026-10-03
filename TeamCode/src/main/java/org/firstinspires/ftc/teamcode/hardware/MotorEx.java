@@ -4,23 +4,21 @@ import androidx.annotation.NonNull;
 
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.seattlesolvers.solverslib.hardware.motors.Motor;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
-import org.firstinspires.ftc.teamcode.hardware.Motor;
 
 /**
- * An extended motor class that utilizes more features than the
- * regular motor.
+ * Modified version of SolversLib MotorEx class
+ * Only change is allowing for Voltage Compensation
  *
- * @author Jackson and Saket
+ *
  */
 public class MotorEx extends Motor {
-    public DcMotorEx motorEx;
-
-    // The minimum difference between the current and requested motor power between motor writes
-    private double cachingTolerance = 0.0001;
     public static double REFERENCE_VOLTAGE = 12.5;
+    public DcMotorEx motorEx;
+    private double cachingTolerance = 0.0001;
 
     /**
      * Constructs the instance motor for the wrapper
@@ -58,7 +56,7 @@ public class MotorEx extends Motor {
         motorEx = (DcMotorEx) super.motor;
     }
 
-    @Override
+    //MODIFIED set function correctly
     public void set(double output, double currVoltage) {
         if (runmode == RunMode.VelocityControl) {
             setPower((veloController.calculate(getCorrectedVelocity(), output) + feedforward.calculate(output, getAcceleration())) * (REFERENCE_VOLTAGE) / (currVoltage));
@@ -70,6 +68,7 @@ public class MotorEx extends Motor {
         }
     }
 
+    @Override
     // default 12.5V
     public void set(double output) {
         set(output, REFERENCE_VOLTAGE);
@@ -116,9 +115,10 @@ public class MotorEx extends Motor {
      * @param power power to be assigned to the motor if difference is greater than caching tolerance or if power is exactly 0
      */
     public void setPower(double power) {
-//        if ((Math.abs(power - motorEx.getPower()) > cachingTolerance) || (power == 0 && motorEx.getPower() != 0)) {
-        motorEx.setPower(power);
-//        }
+        if ((Math.abs(power - motorEx.getPower()) > cachingTolerance) || (power == 0 && motorEx.getPower() != 0)) {
+            lastPower = power;
+            motorEx.setPower(power);
+        }
     }
 
     /**
@@ -144,8 +144,9 @@ public class MotorEx extends Motor {
      * @param current the current alert to set
      * @param unit the unit to set the current alert in
      */
-    public void setCurrentAlert(double current, CurrentUnit unit) {
+    public MotorEx setCurrentAlert(double current, CurrentUnit unit) {
         motorEx.setCurrentAlert(current, unit);
+        return this;
     }
 
     /**

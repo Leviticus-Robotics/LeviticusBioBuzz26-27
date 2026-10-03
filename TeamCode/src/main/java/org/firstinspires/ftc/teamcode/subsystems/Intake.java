@@ -3,40 +3,35 @@ package org.firstinspires.ftc.teamcode.subsystems;
 import androidx.annotation.NonNull;
 
 import com.acmerobotics.dashboard.config.Config;
-import com.pedropathing.localization.MotionState;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.seattlesolvers.solverslib.hardware.motors.Motor;
-import com.seattlesolvers.solverslib.util.InterpLUT;
+import com.seattlesolvers.solverslib.hardware.motors.MotorEx;
 
-
-import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 import org.jetbrains.annotations.NotNull;
 
 import dev.frozenmilk.dairy.mercurial.processes.Channel;
-import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 import dev.frozenmilk.dairy.mercurial.processes.StateMachine;
 
 @Config
-public class Shooter extends StateMachine {
-    MotorEx shooter;
-    Channel<MotionState> motionStates = new Channel.Single<>();
-    Channel<Mode> switchModes = new Channel.Single<>();
+public class Intake extends StateMachine {
+    MotorEx intake;
+    Channel<Mode> switchModes = new Channel.Single();
     public static double[] pidCoefficients = new double[] {1.0, 0.0, 0.0};
     public static double[] feedforwardCoefficients = new double[]{0, 0, 0};
     public static boolean usePIDCoefficients = true;
     public static boolean useFeedforwardCoefficients = true;
-    public Shooter(HardwareMap hardwareMap, EventManager<MotionState> localizationEventManager){
-        shooter = new MotorEx(hardwareMap, ConfigNames.shooter);
-        shooter.setRunMode(Motor.RunMode.RawPower);
-        shooter.setInverted(true);
+
+    public Intake(HardwareMap hardwareMap){
+        intake = new MotorEx(hardwareMap, ConfigNames.intake);
+        intake.setRunMode(Motor.RunMode.RawPower);
+        intake.setInverted(true);
         if(usePIDCoefficients){
-            shooter.setVeloCoefficients(pidCoefficients[0], pidCoefficients[1], pidCoefficients[2]);
+            intake.setVeloCoefficients(pidCoefficients[0], pidCoefficients[1], pidCoefficients[2]);
         }
         if(useFeedforwardCoefficients){
-            shooter.setFeedforwardCoefficients(feedforwardCoefficients[0], feedforwardCoefficients[1], feedforwardCoefficients[2]);
+            intake.setFeedforwardCoefficients(feedforwardCoefficients[0], feedforwardCoefficients[1], feedforwardCoefficients[2]);
         }
-        localizationEventManager.addHandler(motionStateForwarder);
     }
 
     public class Fixed implements Mode{
@@ -50,14 +45,14 @@ public class Shooter extends StateMachine {
 
         @Override
         public void enter(@NotNull Mode previousMode){
-             if(useVelocity) {
-                 shooter.setRunMode(Motor.RunMode.VelocityControl);
-                 shooter.set(value);
-             }
-             else{
-                 shooter.setRunMode(Motor.RunMode.RawPower);
-                 shooter.set(value);
-             }
+            if(useVelocity) {
+                intake.setRunMode(Motor.RunMode.VelocityControl);
+                intake.set(value);
+            }
+            else{
+                intake.setRunMode(Motor.RunMode.RawPower);
+                intake.set(value);
+            }
 
         }
 
@@ -78,12 +73,11 @@ public class Shooter extends StateMachine {
                     ",useVelocity=" + useVelocity;
         }
     }
-
     Mode idle = new Mode() {
         @Override
         public void enter(@NotNull Mode previousMode){
-            shooter.setRunMode(Motor.RunMode.RawPower);
-            shooter.set(0);
+            intake.setRunMode(Motor.RunMode.RawPower);
+            intake.set(0);
         }
         @NonNull
         @Override
@@ -101,31 +95,22 @@ public class Shooter extends StateMachine {
             return "Idle";
         }
     };
+
     @NonNull
     @Override
     protected Mode init() {
         return idle;
     }
 
-    EventManager.Handler<MotionState> motionStateForwarder = motionState -> {
-        motionStates.send(motionState);
-        if(fiber().status().alive()) {
-            return EventManager.EventHandled.ok();
-        } else{
-            return EventManager.EventHandled.remove();
-        }
-    };
 
-
-    public void idle(){
-        switchModes.send(idle);
-    }
     public void fixed(double value, boolean useVelocity){
         switchModes.send(new Fixed(value, useVelocity));
     }
 
-    public double getVelocity(){
-        return shooter.getVelocity();
+    public void idle(){
+        switchModes.send(idle);
     }
-
+    public double getVelocity(){
+        return intake.getVelocity();
+    }
 }

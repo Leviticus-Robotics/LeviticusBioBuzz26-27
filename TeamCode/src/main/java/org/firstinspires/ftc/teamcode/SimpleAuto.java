@@ -7,7 +7,10 @@ import com.pedropathing.utils.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
+import org.firstinspires.ftc.teamcode.constants.Constants;
+
 @Autonomous(name = "Simple Auto")
+@Deprecated
 //@Configurable
 public class SimpleAuto extends OpMode {
     Follower follower;
