@@ -29,7 +29,7 @@ public class MotorTuning extends OpMode {
     public void init() {
         timer = new Timer();
         dashboard = FtcDashboard.getInstance().getTelemetry();
-        motor = new MotorEx(hardwareMap, ConfigNames.testMotor);
+        motor = new MotorEx(hardwareMap, ConfigNames.shooter);
         if(!useFixedPower) {
             motor.setVeloCoefficients(pidCoefficients[0], pidCoefficients[1], pidCoefficients[2]);
             motor.setFeedforwardCoefficients(feedforwardCoefficients[0], feedforwardCoefficients[1], feedforwardCoefficients[2]);

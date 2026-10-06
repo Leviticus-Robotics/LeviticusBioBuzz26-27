@@ -18,7 +18,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 public class MotorEx extends Motor {
     public static double REFERENCE_VOLTAGE = 12.5;
     public DcMotorEx motorEx;
-    private double cachingTolerance = 0.0001;
+    private double cachingTolerance = 0;
 
     /**
      * Constructs the instance motor for the wrapper

@@ -28,9 +28,9 @@ import dev.frozenmilk.dairy.mercurial.processes.Fiber;
 
 @Config
 public class ShooterTesting{
-    final static Pose defaultPose = new Pose(0, 0);
-    public static double fixedPower = 1;
-    public static double velocity = 1500;
+    final static Pose defaultPose = new Pose(0, 0, Math.toRadians(90));
+    public static double fixedPower = 0.55;
+    public static double velocity = 950;
 
     //Create Mercurial FTC TeleOp
     public static final MercurialFTC.RegisterableProgram ShooterTesting = teleOp(new Pose(0, 0))
@@ -39,58 +39,60 @@ public class ShooterTesting{
 
     public static MercurialFTC.RegisterableProgram teleOp(Pose pose){
         return MercurialFTC.teleop(ctx -> {
-            MercurialFollower follower = Constants.createMercurial(ctx.hardwareMap());
-            Shooter shooter = new Shooter(ctx.hardwareMap(), follower.localizationEventManager());
-            Drivetrain drivetrain = new Drivetrain(follower);
-            Intake intake = new Intake(ctx.hardwareMap());
-            follower.localizer().setPose(pose);
+//            MercurialFollower follower = Constants.createMercurial(ctx.hardwareMap());
+            EventManager<Double> voltageEventManager = new EventManager<>();
+//            Shooter shooter = new Shooter(ctx.hardwareMap(), follower.localizationEventManager(), voltageEventManager);
+            Shooter shooter = new Shooter(ctx.hardwareMap());
+//            Drivetrain drivetrain = new Drivetrain(follower);
+//            Intake intake = new Intake(ctx.hardwareMap());
+//            follower.localizer().setPose(pose);
 
             class DriveSettings{
                 boolean fieldCentric = false;
                 boolean slowMode = false;
             }
             DriveSettings driveSettings = new DriveSettings();
-            EventManager.Handler<GamepadD.Delta> gamepad1Handler =
-                    GamepadD.gamepad1Handler(event -> {
-
-                        if(event.leftTriggerOver(0.5)){
-                            driveSettings.fieldCentric = !driveSettings.fieldCentric;
-                        }
-                        else if(event.rightTriggerOver(0.5)){
-                            driveSettings.slowMode = !driveSettings.slowMode;
-                        }
-                        else if(event.bWasPressed()){
-                            follower.localizer().setPose(defaultPose);
-                        }
-
-                        double multiplier = driveSettings.slowMode ? 0.4 : 1;
-                        if(!driveSettings.fieldCentric){
-                            drivetrain.sendDrivePowers(
-                                    new DrivePowers(
-                                            -event.leftStickY() * multiplier,
-                                            -event.leftStickX() * multiplier,
-                                            -event.rightStickY() * multiplier
-                                    )
-                            );
-                        } else{
-                            drivetrain.sendDrivePowers(
-                                    ManualDrive.fieldCentric(
-                                            event.leftStickX() * multiplier,
-                                            -event.leftStickY() * multiplier,
-                                            -event.rightStickY() * multiplier,
-                                            follower.localizer().pose().heading()
-                                    )
-                            );
-
-                        }
-
-                        if(drivetrain.fiber().status().alive()){
-                            return EventHandled.ok();
-                        } else{
-                            return EventHandled.remove();
-                        }
-                    }
-            );
+//            EventManager.Handler<GamepadD.Delta> gamepad1Handler =
+//                    GamepadD.gamepad1Handler(event -> {
+//
+//                        if(event.leftTriggerOver(0.5)){
+//                            driveSettings.fieldCentric = !driveSettings.fieldCentric;
+//                        }
+//                        else if(event.rightTriggerOver(0.5)){
+//                            driveSettings.slowMode = !driveSettings.slowMode;
+//                        }
+//                        else if(event.bWasPressed()){
+//                            follower.localizer().setPose(defaultPose);
+//                        }
+//
+//                        double multiplier = driveSettings.slowMode ? 0.4 : 1;
+//                        if(!driveSettings.fieldCentric){
+//                            drivetrain.sendDrivePowers(
+//                                    new DrivePowers(
+//                                            -event.leftStickY() * multiplier,
+//                                            -event.leftStickX() * multiplier,
+//                                            -event.rightStickY() * multiplier
+//                                    )
+//                            );
+//                        } else{
+//                            drivetrain.sendDrivePowers(
+//                                    ManualDrive.fieldCentric(
+//                                            event.leftStickX() * multiplier,
+//                                            -event.leftStickY() * multiplier,
+//                                            -event.rightStickY() * multiplier,
+//                                            follower.localizer().pose().heading()
+//                                    )
+//                            );
+//
+//                        }
+//
+//                        if(drivetrain.fiber().status().alive()){
+//                            return EventHandled.ok();
+//                        } else{
+//                            return EventHandled.remove();
+//                        }
+//                    }
+//            );
 
             EventManager.Handler<GamepadD.Delta> gamepad2Handler =
                     GamepadD.gamepad2Handler( event -> {
@@ -98,7 +100,7 @@ public class ShooterTesting{
                         else if(event.rightBumperWasPressed()) shooter.fixed(velocity, true);
                         else if(event.rightTrigger() > 0.5) shooter.idle();
 
-                        intake.fixed(event.rightStickX(), false);
+//                        intake.fixed(event.rightStickX(), false);
 
                         if(shooter.fiber().status().alive()){
                             return EventHandled.ok();
@@ -113,18 +115,30 @@ public class ShooterTesting{
                     FtcDashboard.getInstance().getTelemetry()
             );
 
+            Fiber<?> voltageEventFiber = loop(
+                    expression((scope, _self) -> {
+                        scope.runExec(()-> {
+                             double voltage = ctx.hardwareMap().voltageSensor.iterator().next().getVoltage();
+                             voltageEventManager.notify(voltage);
+                        });
+                        return noop;
+                    })
+            ).spawnable().spawnLink();
+
             Fiber<?> telemetryFiber = loop(
                     expression((scope, _self) -> {
                         scope.runExec(() -> {
                             telemetry.clear();
                             telemetry.addData("Field Centric", driveSettings.fieldCentric);
                             telemetry.addData("Slow Mode", driveSettings.slowMode);
-                            telemetry.addData("Drivetrain Mode", drivetrain.mode());
-                            telemetry.addData("Pose", follower.localizer().pose());
+//                            telemetry.addData("Drivetrain Mode", drivetrain.mode());
+//                            telemetry.addData("Pose", follower.localizer().pose());
                             telemetry.addData("Shooter Velocity", shooter.getVelocity());
                             telemetry.addData("Shooter Mode", shooter.mode());
+                            telemetry.addData("Shooter Corrected Velocity", shooter.shooter.getCorrectedVelocity());
+//                            telemetry.addData("Shooter Motor Mode", shooter.shooter.)
 
-                            telemetry.addData("Intake Mode", intake.mode());
+//                            telemetry.addData("Intake Mode", intake.mode());
                             telemetry.update();
                         });
                         scope.run(waitFor.bind(seconds(0.1)));
@@ -136,7 +150,7 @@ public class ShooterTesting{
 
             ctx.waitForStart();
 //            //set to manual mode instead of idle
-            ctx.gamepadD().addHandler(gamepad1Handler);
+//            ctx.gamepadD().addHandler(gamepad1Handler);
             ctx.gamepadD().addHandler(gamepad2Handler);
             ctx.dropToScheduler();
             return null;
