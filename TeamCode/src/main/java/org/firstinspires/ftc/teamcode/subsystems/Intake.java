@@ -19,8 +19,8 @@ public class Intake extends StateMachine {
     Channel<Mode> switchModes = new Channel.Single();
     public static double[] pidCoefficients = new double[] {1.0, 0.0, 0.0};
     public static double[] feedforwardCoefficients = new double[]{0, 0, 0};
-    public static boolean usePIDCoefficients = true;
-    public static boolean useFeedforwardCoefficients = true;
+    public static boolean usePIDCoefficients = false;
+    public static boolean useFeedforwardCoefficients = false;
 
     public Intake(HardwareMap hardwareMap){
         intake = new MotorEx(hardwareMap, ConfigNames.intake);

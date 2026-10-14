@@ -13,4 +13,5 @@ public class ConfigNames {
     public static String testMotor = "motor";
     public static String shooter = "shooter";
     public static String intake = "intake";
+    public static String transfer = "transfer";
 }

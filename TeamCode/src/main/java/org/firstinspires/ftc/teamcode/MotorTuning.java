@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.utils.Timer;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
@@ -29,7 +30,7 @@ public class MotorTuning extends OpMode {
     public void init() {
         timer = new Timer();
         dashboard = FtcDashboard.getInstance().getTelemetry();
-        motor = new MotorEx(hardwareMap, ConfigNames.shooter);
+        motor = new MotorEx(hardwareMap, ConfigNames.shooter);//change name accordingly
         if(!useFixedPower) {
             motor.setVeloCoefficients(pidCoefficients[0], pidCoefficients[1], pidCoefficients[2]);
             motor.setFeedforwardCoefficients(feedforwardCoefficients[0], feedforwardCoefficients[1], feedforwardCoefficients[2]);
