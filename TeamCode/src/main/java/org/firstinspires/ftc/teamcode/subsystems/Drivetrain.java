@@ -18,7 +18,7 @@ import kotlin.time.TimeMark;
 
 @Config
 public class Drivetrain extends StateMachine {
-    private MercurialFollower   follower;
+    private MercurialFollower follower;
     private Channel<MotionState> motionStates = Channel.single();//handle localization input
     private Channel<Mode> switches = Channel.queue();//handle mode switching
     private Channel<DrivePowers> drivePowers = Channel.single();//handle drive inputs

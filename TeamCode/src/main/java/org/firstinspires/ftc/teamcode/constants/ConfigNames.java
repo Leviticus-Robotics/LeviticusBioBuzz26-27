@@ -10,8 +10,13 @@ public class ConfigNames {
     public static String BL = "BL";
     public static String BR = "BR";
     public static String OCTOQUAD = "octoquad";
+
     public static String testMotor = "motor";
     public static String shooter = "shooter";
     public static String intake = "intake";
     public static String transfer = "transfer";
+    public static String turretServo1 = "ts1";
+    public static String turretServo2 = "ts2";
+    public static String turretServo3 = "ts3";
+
 }
