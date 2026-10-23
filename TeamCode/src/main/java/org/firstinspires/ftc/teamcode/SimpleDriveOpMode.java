@@ -6,6 +6,7 @@ import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.math.Pose;
 import com.pedropathing.utils.Timer;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.pedropathing.drivetrain.DrivePowers;
@@ -13,11 +14,12 @@ import com.pedropathing.follower.ManualDrive;
 import com.seattlesolvers.solverslib.hardware.motors.Motor;
 import com.seattlesolvers.solverslib.hardware.motors.MotorEx;
 
-import org.firstinspires.ftc.teamcode.util.ConfigNames;
+import org.firstinspires.ftc.teamcode.constants.Constants;
+import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 
 import java.util.concurrent.TimeUnit;
 
-
+//for simple driving
 @TeleOp(name = "Intake Drive")
 @Config
 //@Configurable
@@ -28,9 +30,6 @@ public class SimpleDriveOpMode extends OpMode {
     Pose robotPose;
     Timer timer;
     double previousTime = 0;
-
-    //-------------INTAKE---------------------------------
-    MotorEx motor;
     public static double power = 1.0;
     public static boolean useVelocity = false;
     public static double velocity = 1000;
@@ -48,11 +47,7 @@ public class SimpleDriveOpMode extends OpMode {
         follower = Constants.create(hardwareMap);
         timer = new Timer();
 
-        motor = new MotorEx(hardwareMap, ConfigNames.testMotor);
-        motor.setInverted(isInverted);
         timer = new Timer();
-        updateFeedforward();
-        updatePIDF();
     }
 
     @Override
@@ -82,23 +77,6 @@ public class SimpleDriveOpMode extends OpMode {
         follower.update();
 
         robotPose = follower.pose();
-        updateFeedforward();
-        updatePIDF();
-        if(!useVelocity) {
-            motor.setRunMode(Motor.RunMode.RawPower);
-            motor.set(power);
-        }
-        else{
-            motor.setRunMode(Motor.RunMode.VelocityControl);
-            motor.setVelocity(velocity);
-        }
-
-        telemetry.addLine("---------------Intake ----------------");
-        telemetry.addData("Target Power", power);
-        telemetry.addData("Target Velocity", velocity);
-        telemetry.addData("RunMode", useVelocity ? Motor.RunMode.VelocityControl : Motor.RunMode.RawPower);
-        telemetry.addData("Power", motor.getRawPower());
-        telemetry.addData("Velocity ", motor.getVelocity());
         telemetry.addLine("---------------Follower ----------------");
         telemetry.addData("Robot X", robotPose.x());
         telemetry.addData("Robot Y", robotPose.y());
@@ -112,16 +90,4 @@ public class SimpleDriveOpMode extends OpMode {
         previousTime = timer.get(TimeUnit.MILLISECONDS);
     }
 
-    public void updateFeedforward(){
-        if(useFeedforwardCoefficients){
-            motor.setFeedforwardCoefficients(kS, kV, kA);
-        }
-    }
-
-    public void updatePIDF(){
-        if(usePIDFCoefficients){
-            motor.setVeloCoefficients(kP, kI, kD);
-        }
-
-    }
 }

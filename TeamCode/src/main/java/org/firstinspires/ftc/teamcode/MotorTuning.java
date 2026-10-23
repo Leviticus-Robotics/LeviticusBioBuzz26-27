@@ -3,13 +3,13 @@ package org.firstinspires.ftc.teamcode;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.utils.Timer;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.hardware.Motor;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
-import org.firstinspires.ftc.teamcode.util.ConfigNames;
+import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 
 import java.util.concurrent.TimeUnit;
 
@@ -30,12 +30,12 @@ public class MotorTuning extends OpMode {
     public void init() {
         timer = new Timer();
         dashboard = FtcDashboard.getInstance().getTelemetry();
-        motor = new MotorEx(hardwareMap, ConfigNames.testMotor);
+        motor = new MotorEx(hardwareMap, ConfigNames.shooter);//change name accordingly
         if(!useFixedPower) {
             motor.setVeloCoefficients(pidCoefficients[0], pidCoefficients[1], pidCoefficients[2]);
             motor.setFeedforwardCoefficients(feedforwardCoefficients[0], feedforwardCoefficients[1], feedforwardCoefficients[2]);
         }
-        motor.setRunMode(useFixedPower ? Motor.RunMode.RawPower : Motor.RunMode.VelocityControl);
+        motor.setRunMode(useFixedPower ? MotorEx.RunMode.RawPower : MotorEx.RunMode.VelocityControl);
     }
 
     @Override

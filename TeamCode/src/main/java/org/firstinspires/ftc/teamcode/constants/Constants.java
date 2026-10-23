@@ -1,5 +1,6 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.constants;
 
+import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.algorithm.Foresight;
 import com.pedropathing.algorithm.ForesightConfig;
 import com.pedropathing.controllers.Controller;
@@ -15,10 +16,10 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.teamcode.util.ConfigNames;
 
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
 
+@Config
 public class Constants {
     public static MecanumConfig driveConfig = new MecanumConfig(
         c -> {
@@ -32,26 +33,26 @@ public class Constants {
             c.backRightDirection.set(DcMotorSimple.Direction.REVERSE);
         }
     );
-
+    public static
+    double vx = 6;//2.3;
+    public static
+    double vy = 2.3; // 6
     public static OctoQuadConfig localizerConfig = new OctoQuadConfig(c -> {
         c.name.set(ConfigNames.OCTOQUAD);
         c.xPodPort.set(0);
         c.yPodPort.set(1);
-        c.ticksPerUnit.set(505.316944406 * 48/47.5);
-        c.xPodOffset.set(-1.6929133858267715);//-2.204724409448819
-        c.yPodOffset.set(-5.787401574803149);//-5.787401574803149
+        c.ticksPerUnit.set(505.316944406);
+        c.xPodOffset.set(-vx);//-2.3
+        c.yPodOffset.set(-vy);//-5.787401574803149t#
         c.xPodDirection.set(OctoQuad.EncoderDirection.FORWARD);
         c.yPodDirection.set(OctoQuad.EncoderDirection.REVERSE);
         c.globalDistanceUnit.set(DistanceUnit.INCH);
         c.offsetUnits.set(DistanceUnit.INCH);
         c.i2cRecoveryMode.set(OctoQuad.I2cRecoveryMode.MODE_1_PERIPH_RST_ON_FRAME_ERR);
-        c.headingScalar.set(1.0284592570209024);
+        c.localizerVelocityIntervalMS.set(35);
+        c.headingScalar.set(1.02750014857118422);//1.0284592570209024
     });
-    //new
-//        c.ticksPerUnit.set(505.316944406);
-//        c.xPodOffset.set(-2.204724409448819);
-//        c.yPodOffset.set(-5.787401574803149);
-//        c.headingScalar.set(1.0284592570209024);
+
 
     public static ForesightConfig foresightConfig = new ForesightConfig(
             c -> {
