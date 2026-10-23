@@ -35,7 +35,7 @@ public class ShooterTesting{
                         }
                     }
             );
-
+            
             ctx.waitForStart();
 
             ctx.gamepadD().addHandler(gamepad2Handler);
