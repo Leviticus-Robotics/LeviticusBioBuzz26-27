@@ -18,6 +18,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
+import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
 
 @Config
 public class Constants {
@@ -91,11 +92,16 @@ public class Constants {
 
 
 
-    public static MercurialFollower createMercurial(HardwareMap h) {
+    public static MercurialFollower createFollower(HardwareMap h) {
         return new MercurialFollower(
-                new OctoQuadLocalizer(h, localizerConfig),
                 new Mecanum(h, driveConfig),
                 new Foresight(foresightConfig)
+        );
+    }
+
+    public static MercurialLocalizer createLocalizer(HardwareMap h) {
+        return new MercurialLocalizer(
+                new OctoQuadLocalizer(h, localizerConfig)
         );
     }
 }
