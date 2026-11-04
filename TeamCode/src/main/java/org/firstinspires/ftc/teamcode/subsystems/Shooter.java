@@ -25,7 +25,7 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 import org.firstinspires.ftc.teamcode.game.ALLIANCE;
 
 @Config
-//Single Shooter Motor
+//Single Shooter Motor: LUT Mode, SOTM, Regular Velocity, Regular Power
 public class Shooter extends SwitchedStateMachine {
     public MotorEx shooter;
     Channel<MotionState> motionStates = linkedSingleChannel();
@@ -71,9 +71,9 @@ public class Shooter extends SwitchedStateMachine {
     public static class AimCalculator{
         public InterpLUT distToVel;
         public InterpLUT distToKCorrection;
-        public static double[] distances =  new double[] {20,   30,   40,   50,   60,   70,  80};
-        public static double[] velocities = new double[] {700, 900, 1000, 1050, 1100, 1200, 1250};
-        public static double[] velCorrectionFactor = {0.4, 0.5, 0.6,0.54, 0.85,0.9,0.96,1.02,1.07, 1.1, 1.14,1.18,1.25,1.31}; // take time in the air and then subtract a bit
+        public static double[] distances =           new double[]{20,   30,   40,   50,   60,   70,  80};
+        public static double[] velocities =          new double[]{700, 900, 1000, 1050, 1100, 1200, 1250};
+        public static double[] velCorrectionFactor = new double[]{0.4, 0.5, 0.6,  0.54, 0.85, 0.9,  0.96}; // take time in the air and then subtract a bit
         public static int iterations = 10;
         public static double robotHeadingAimCorrectionFactor = -0;
         public AimCalculator() {
@@ -99,12 +99,12 @@ public class Shooter extends SwitchedStateMachine {
          * 4. Repeat steps 1-3 to iterative refine d
          * @param pose     The robot pose
          * @param velocity The robot velocity
-         * @return bottom velocity, top velocity, heading
+         * @return velocity, heading
          */
         public double[] targetPowersHeading(Pose pose, Vector velocity, Pose targetPose) {
             Vector2D gap = targetPose.minus(pose).toVector2D();
             Vector2D dirParallel = gap.normalized();
-            Vector2D dirPerp = Vector2D.cartesian(gap.x(), gap.y());
+            Vector2D dirPerp = Vector2D.cartesian(dirParallel.x(), dirParallel.y());
             dirPerp.rotate(-Math.PI / 2);
             double velParallel = velocity.dot(dirParallel.toVector()); // component parallel to line from robot to target pose
             double velPerp = velocity.dot(dirPerp.toVector()); // left is negative, right is positive
@@ -123,7 +123,7 @@ public class Shooter extends SwitchedStateMachine {
                 );
                 headingCorrection = Math.atan2(predictPerp, predictParallel);
                 // Steps 3-4: error and update
-                double distanceIdeal = (realDist / predictParallel) * predict;
+                double distanceIdeal = predictParallel != 0 ? (realDist / predictParallel) * predict : realDist;//changed for divide by zero error
                 // d + correction + error = ideal d
                 // (d + error) + correction = ideal d, update d += error
                 targetDist += distanceIdeal - predict;
@@ -139,28 +139,36 @@ public class Shooter extends SwitchedStateMachine {
 
     }
 
-    public Mode lutSOTMMode(ALLIANCE alliance, SIDE side, Channel<Shooter.LUTStatus> resultChannel, double tolerance){
+    public Mode lutSOTMMode(ALLIANCE alliance, SIDE side, Channel<Shooter.VelocityStatus> resultChannel, double tolerance){
         boolean[] notified = new boolean[1];
         return egressMode(self -> {//used so that if it switches mode, it performs second block logic
-                    stateTelemetry.setValue("LUT Static (" + alliance + " " + side);
+                    stateTelemetry.setValue("LUT SOTM (" + alliance + " " + side);
                     shooter.setRunMode(MotorEx.RunMode.VelocityControl);
                     MotionState motionState = motionStates.poll();
-                    Pose robotPose = motionState.pose();
-                    Pose targetShootPose = getPose(alliance, side);
+                    if(motionState != null) {
+                        Pose robotPose = motionState.pose();
+                        Pose targetShootPose = getPose(alliance, side);
 
-                    double targetVelocity = aimCalculator.targetPowersHeading(robotPose, motionState.velocity().toVector(), targetShootPose)[0];
-                    shooter.set(targetVelocity);
+                        double targetVelocity = MathUtils.clamp(
+                                aimCalculator.targetPowersHeading(robotPose, motionState.velocity().toVector(), targetShootPose)[0],
+                                AimCalculator.distances[0],
+                                AimCalculator.distances[AimCalculator.distances.length - 1]
+                        );
 
-                    if(resultChannel != null && !notified[0]){
-                        if(isAtVelocity(targetVelocity, tolerance)){
-                            resultChannel.sendIfEmpty(LUTStatus.AtTarget);
+                        shooter.set(targetVelocity);
+
+                        if (resultChannel != null && !notified[0]) {
+                            if (isAtVelocity(targetVelocity, tolerance)) {
+                                notified[0] = true;
+                                resultChannel.sendIfEmpty(VelocityStatus.AtTarget);
+                            }
                         }
                     }
                     return self;
                 },
                 self -> {
                     if(resultChannel != null){
-                        resultChannel.sendIfEmpty(LUTStatus.Cancelled);
+                        resultChannel.sendIfEmpty(VelocityStatus.Cancelled);
                     }
                 }
         );
@@ -175,29 +183,38 @@ public class Shooter extends SwitchedStateMachine {
     }
 
 
-    public Mode lutStaticMode(ALLIANCE alliance, SIDE side, Channel<Shooter.LUTStatus> resultChannel, double tolerance){
+    public Mode lutStaticMode(ALLIANCE alliance, SIDE side, Channel<Shooter.VelocityStatus> resultChannel, double tolerance){
         boolean[] notified = new boolean[1];
         return egressMode(self -> {//used so that if it switches mode, it performs second block logic
                 stateTelemetry.setValue("LUT Static (" + alliance + " " + side);
                 shooter.setRunMode(MotorEx.RunMode.VelocityControl);
                 MotionState motionState = motionStates.poll();
-                Pose robotPose = motionState.pose();
-                Pose targetShootPose = getPose(alliance, side);
+                if(motionState != null) {
+                    Pose robotPose = motionState.pose();
+                    Pose targetShootPose = getPose(alliance, side);
 
-                double distance = robotPose.distance(targetShootPose);
-                double targetVelocity = aimCalculator.distToVel.get(distance);
-                shooter.set(targetVelocity);
+                    double distance = robotPose.distance(targetShootPose);
+                    double targetVelocity = MathUtils.clamp(
+                            aimCalculator.distToVel.get(distance),
+                            AimCalculator.distances[0],
+                            AimCalculator.distances[AimCalculator.distances.length - 1]
+                    );
 
-                if(resultChannel != null && !notified[0]){
-                    if(isAtVelocity(targetVelocity, tolerance)){
-                        resultChannel.sendIfEmpty(LUTStatus.AtTarget);
+
+                    shooter.set(targetVelocity);
+
+                    if (resultChannel != null && !notified[0]) {
+                        if (isAtVelocity(targetVelocity, tolerance)) {
+                            notified[0] = true;
+                            resultChannel.sendIfEmpty(VelocityStatus.AtTarget);
+                        }
                     }
                 }
                 return self;
             },
             self -> {
                 if(resultChannel != null){
-                    resultChannel.sendIfEmpty(LUTStatus.Cancelled);
+                    resultChannel.sendIfEmpty(VelocityStatus.Cancelled);
                 }
             }
         );
@@ -219,20 +236,22 @@ public class Shooter extends SwitchedStateMachine {
 
     private Mode fixedVelocityMode(double targetVelocity, double tolerance, Channel<Shooter.VelocityStatus> resultChannel){
         boolean[] notified = new boolean[1];
-        return entranceMode(from -> {
-                    stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
-                    shooter.setRunMode(MotorEx.RunMode.VelocityControl);
-                },
-                self -> {
-                    shooter.set(targetVelocity);
-                    if (resultChannel != null && notified[0] == false) {
-                        if (isAtVelocity(targetVelocity, tolerance)) {
-                            notified[0] = true;
-                            resultChannel.sendIfEmpty(Shooter.VelocityStatus.AtTarget);
-                        }
+        return egressMode(self -> {
+                stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
+                shooter.setRunMode(MotorEx.RunMode.VelocityControl);
+                shooter.set(targetVelocity);
+                if (resultChannel != null && notified[0] == false) {
+                    if (isAtVelocity(targetVelocity, tolerance)) {
+                        notified[0] = true;
+                        resultChannel.sendIfEmpty(Shooter.VelocityStatus.AtTarget);
                     }
-                    return self;
-                });
+                }
+                return self;
+            }, self -> {
+                if(resultChannel != null){
+                    resultChannel.sendIfEmpty(VelocityStatus.Cancelled);
+                }
+            });
     }
 
 
@@ -245,11 +264,7 @@ public class Shooter extends SwitchedStateMachine {
     }
 
     public void fixedVelocity(double targetVelocity, double tolerance, Channel<Shooter.VelocityStatus> resultChannel) {
-        if (resultChannel != null) {
-            switchTo(fixedVelocityMode(targetVelocity, tolerance, resultChannel));
-        } else{
-            fixedVelocity(targetVelocity, tolerance, null);
-        }
+        switchTo(fixedVelocityMode(targetVelocity, tolerance, resultChannel));//if result channel is null, it will pass in null to third parameter
     }
 
     private Mode fixedPowerMode(double power){//parametrized so it keeps holding the velocity
@@ -294,10 +309,6 @@ public class Shooter extends SwitchedStateMachine {
     }
 
     public enum VelocityStatus{
-        AtTarget
-    }
-
-    public enum LUTStatus{
         AtTarget,
         Cancelled
     }
