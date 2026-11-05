@@ -27,6 +27,12 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 import dev.frozenmilk.dairy.mercurial.processes.Timer;
 import kotlin.time.TimeMark;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.expression;
+
+/** Drivetrain
+ *  FieldCentric, robotCentric driving modes
+ *  Robot Holding / Path Following modes
+ *  Uses: 4 Motors
+ */
 public class Drivetrain extends SwitchedStateMachine {
     //check Mercuiral GitHub, most of the code the same, added timeouts for follow paths
     private MercurialFollower follower;

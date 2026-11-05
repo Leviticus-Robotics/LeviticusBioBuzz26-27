@@ -20,6 +20,7 @@ public class MotorEx extends Motor {
     public DcMotorEx motorEx;
     private double cachingTolerance = 0;
 
+    private double recentOutput;
     /**
      * Constructs the instance motor for the wrapper
      *
@@ -59,7 +60,8 @@ public class MotorEx extends Motor {
     //MODIFIED set function correctly
     public void set(double output, double currVoltage) {
         if (runmode == RunMode.VelocityControl) {
-            setPower((veloController.calculate(getCorrectedVelocity(), output) + feedforward.calculate(output, getAcceleration())) * (REFERENCE_VOLTAGE) / (currVoltage));
+            recentOutput = (veloController.calculate(getCorrectedVelocity(), output) + feedforward.calculate(output, getAcceleration())) * (REFERENCE_VOLTAGE) / (currVoltage);
+            setPower(recentOutput);
         } else if (runmode == RunMode.PositionControl) {
             double error = positionController.calculate(encoder.getPosition());
             setPower(output * error);
@@ -155,5 +157,14 @@ public class MotorEx extends Motor {
      */
     public boolean isOverCurrent() {
         return motorEx.isOverCurrent();
+    }
+
+
+    /**
+     * Call this method if using velocity control
+     * @return most recent output set to the motor
+     */
+    public double getRecentOutput(){
+        return recentOutput;
     }
 }

@@ -14,6 +14,10 @@ import dev.frozenmilk.dairy.mercurial.processes.Channel;
 import dev.frozenmilk.dairy.mercurial.processes.StateMachine;
 import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
+/** Transfer
+ * Extends from motor subsystem
+ * Uses 1 motor (transfer)
+ */
 @Config
 public class Transfer extends MotorSubsystem {
     public static double[] pidCoefficients = new double[] {1.0, 0.0, 0.0};

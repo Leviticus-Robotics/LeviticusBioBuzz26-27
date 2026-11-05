@@ -9,6 +9,7 @@ import com.pedropathing.math.Vector;
 import com.pedropathing.math.Vector2D;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.seattlesolvers.solverslib.hardware.motors.Motor;
+import com.seattlesolvers.solverslib.hardware.motors.MotorGroup;
 import com.seattlesolvers.solverslib.util.InterpLUT;
 import com.seattlesolvers.solverslib.util.MathUtils;
 
@@ -24,16 +25,24 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 import org.firstinspires.ftc.teamcode.game.ALLIANCE;
 
+
+/** Shooter
+ * Modes: SOTM w/ LUT, Static LUT, Raw Power, Raw Velocity, Off
+ * Uses: 2 motors (shooter) attached to the same axle
+ * Using Motor Group so that only PID one motor, set the other to the same values
+ */
 @Config
 //Single Shooter Motor: LUT Mode, SOTM, Regular Velocity, Regular Power
 public class Shooter extends SwitchedStateMachine {
-    public MotorEx shooter;
+    MotorGroup motorGroup;
+    public MotorEx shooterLeft; // motor wire is left
+    public MotorEx shooterRight; // motor wire is right
     Channel<MotionState> motionStates = linkedSingleChannel();
     public static double[] pidCoefficients = new double[] {0.003, 0.0, 0.0};
     public static double[] feedforwardCoefficients = new double[]{0.0291871, 0.000355203, 0};
     public static boolean usePIDCoefficients = true;
     public static boolean useFeedforwardCoefficients = true;
-    public static boolean DIRECTION_REVERSE = false;
+//    public static boolean DIRECTION_REVERSE = false;
 
     public static Pose AIM_BLUE_CLOSE = new Pose(61, 55);
     public static Pose AIM_BLUE_FAR = new Pose(61, 67);
@@ -47,21 +56,27 @@ public class Shooter extends SwitchedStateMachine {
     public Shooter(Context ctx){
         stateTelemetry = ctx.telemetry().addData("Shooter/State", "unknown");
         aimCalculator = new AimCalculator();
-        shooter = new MotorEx(ctx.hardwareMap(), ConfigNames.shooter);
-        shooter.setRunMode(Motor.RunMode.VelocityControl);
-        shooter.setInverted(DIRECTION_REVERSE);
-        shooter.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
+        shooterLeft = new MotorEx(ctx.hardwareMap(), ConfigNames.shooterLeft);
+        shooterRight = new MotorEx(ctx.hardwareMap(), ConfigNames.shooterRight);
+        shooterLeft.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooterRight.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooterRight.setInverted(true);//need to invert one of them first
+
+        motorGroup = new MotorGroup(shooterLeft, shooterRight);
+        motorGroup.setRunMode(Motor.RunMode.VelocityControl);
+
         if(usePIDCoefficients){
-            shooter.setVeloCoefficients(pidCoefficients[0], pidCoefficients[1], pidCoefficients[2]);
+            motorGroup.setVeloCoefficients(pidCoefficients[0], pidCoefficients[1], pidCoefficients[2]);
         }
         if(useFeedforwardCoefficients){
-            shooter.setFeedforwardCoefficients(feedforwardCoefficients[0], feedforwardCoefficients[1], feedforwardCoefficients[2]);
+            motorGroup.setFeedforwardCoefficients(feedforwardCoefficients[0], feedforwardCoefficients[1], feedforwardCoefficients[2]);
         }
 
 
         off = entranceMode(from -> {
-            shooter.setRunMode(Motor.RunMode.RawPower);
-            shooter.set(0);
+            shooterLeft.setRunMode(Motor.RunMode.RawPower);
+            shooterLeft.set(0);
             stateTelemetry.setValue("off");
         });
     }
@@ -137,25 +152,39 @@ public class Shooter extends SwitchedStateMachine {
             };
         }
 
+        public double getTargetHeading(Pose pose, Pose targetPose){
+            return MathFunctions.normalizeAngle(targetPose.minus(pose).heading());
+        }
+
     }
 
-    public Mode lutSOTMMode(ALLIANCE alliance, SIDE side, Channel<Shooter.VelocityStatus> resultChannel, double tolerance){
+    public Mode lutSOTMMode(
+            ALLIANCE alliance,
+            SIDE side,
+            Channel<Shooter.VelocityStatus> resultChannel,
+            Channel<Double> targetHeadingChannel,
+            double tolerance
+        ){
         boolean[] notified = new boolean[1];
         return egressMode(self -> {//used so that if it switches mode, it performs second block logic
                     stateTelemetry.setValue("LUT SOTM (" + alliance + " " + side);
-                    shooter.setRunMode(MotorEx.RunMode.VelocityControl);
+                    motorGroup.setRunMode(MotorEx.RunMode.VelocityControl);
                     MotionState motionState = motionStates.poll();
                     if(motionState != null) {
                         Pose robotPose = motionState.pose();
                         Pose targetShootPose = getPose(alliance, side);
 
+                        double[] solution = aimCalculator.targetPowersHeading(robotPose, motionState.velocity().toVector(), targetShootPose);
                         double targetVelocity = MathUtils.clamp(
-                                aimCalculator.targetPowersHeading(robotPose, motionState.velocity().toVector(), targetShootPose)[0],
+                                solution[0],
                                 AimCalculator.distances[0],
                                 AimCalculator.distances[AimCalculator.distances.length - 1]
                         );
 
-                        shooter.set(targetVelocity);
+                        shooterLeft.set(targetVelocity);
+                        if(targetHeadingChannel != null) {
+                            targetHeadingChannel.send(solution[1]);//send target heading over through channel
+                        }
 
                         if (resultChannel != null && !notified[0]) {
                             if (isAtVelocity(targetVelocity, tolerance)) {
@@ -173,6 +202,9 @@ public class Shooter extends SwitchedStateMachine {
                 }
         );
     }
+    public Mode lutSOTMMode(ALLIANCE alliance, SIDE side, Channel<Double> targetHeadingChannel,double tolerance){
+        return lutSOTMMode(alliance, side, null, targetHeadingChannel, tolerance);
+    }
 
     public Mode lutSOTMMode(ALLIANCE alliance, SIDE side, double tolerance){
         return lutSOTMMode(alliance, side, null, tolerance);
@@ -183,11 +215,18 @@ public class Shooter extends SwitchedStateMachine {
     }
 
 
-    public Mode lutStaticMode(ALLIANCE alliance, SIDE side, Channel<Shooter.VelocityStatus> resultChannel, double tolerance){
+    //two channels used: one for the target heading(to go to turret or save) & one for velocity status
+    public Mode lutStaticMode(
+              ALLIANCE alliance,
+              SIDE side,
+              Channel<Shooter.VelocityStatus> resultChannel,
+              Channel<Double> targetHeadingChannel,
+              double tolerance
+        ){
         boolean[] notified = new boolean[1];
         return egressMode(self -> {//used so that if it switches mode, it performs second block logic
                 stateTelemetry.setValue("LUT Static (" + alliance + " " + side);
-                shooter.setRunMode(MotorEx.RunMode.VelocityControl);
+                motorGroup.setRunMode(MotorEx.RunMode.VelocityControl);
                 MotionState motionState = motionStates.poll();
                 if(motionState != null) {
                     Pose robotPose = motionState.pose();
@@ -200,8 +239,10 @@ public class Shooter extends SwitchedStateMachine {
                             AimCalculator.distances[AimCalculator.distances.length - 1]
                     );
 
-
-                    shooter.set(targetVelocity);
+                    if(targetHeadingChannel != null) {
+                        targetHeadingChannel.send(aimCalculator.getTargetHeading(robotPose, targetShootPose));
+                    }
+                    motorGroup.set(targetVelocity);
 
                     if (resultChannel != null && !notified[0]) {
                         if (isAtVelocity(targetVelocity, tolerance)) {
@@ -219,12 +260,15 @@ public class Shooter extends SwitchedStateMachine {
             }
         );
     }
+    public Mode lutStaticMode(ALLIANCE alliance, SIDE side, Channel<Double> targetHeadingChannel, double tolerance){
+        return lutStaticMode(alliance, side, null, targetHeadingChannel, tolerance);
+    }
     public Mode lutStaticMode(ALLIANCE alliance, SIDE side, double tolerance){
-        return lutStaticMode(alliance, side, null, tolerance);
+        return lutStaticMode(alliance, side, null, null, tolerance);
     }
 
     public Mode lutStaticMode(ALLIANCE alliance, SIDE side){
-        return lutStaticMode(alliance, side, null, DEFAULT_TOLERANCE);
+        return lutStaticMode(alliance, side, null, null, DEFAULT_TOLERANCE);
     }
 
     @NonNull
@@ -238,8 +282,8 @@ public class Shooter extends SwitchedStateMachine {
         boolean[] notified = new boolean[1];
         return egressMode(self -> {
                 stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
-                shooter.setRunMode(MotorEx.RunMode.VelocityControl);
-                shooter.set(targetVelocity);
+                motorGroup.setRunMode(MotorEx.RunMode.VelocityControl);
+                motorGroup.set(targetVelocity);
                 if (resultChannel != null && notified[0] == false) {
                     if (isAtVelocity(targetVelocity, tolerance)) {
                         notified[0] = true;
@@ -271,8 +315,8 @@ public class Shooter extends SwitchedStateMachine {
         return entranceMode(
                 from -> {
                     stateTelemetry.setValue("Fixed Power (" + power + ")");
-                    shooter.setRunMode(MotorEx.RunMode.RawPower);
-                    shooter.set(power);
+                    motorGroup.setRunMode(MotorEx.RunMode.RawPower);
+                    motorGroup.set(power);
                 }
         );
     }
@@ -295,7 +339,7 @@ public class Shooter extends SwitchedStateMachine {
     }
 
     public double getVelocity(){//returns velocity in ticks/sec
-        return shooter.getVelocity();
+        return motorGroup.getVelocity();//need to check that this method works correctly
     }
 
     public boolean isAtVelocity(double targetVelocity, double tolerance){//an invalid tolerance assumed to be no tolerance

@@ -9,6 +9,11 @@ import dev.frozenmilk.dairy.mercurial.processes.Channel;
 import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 //Simple Motor State machine including velocity/power components
+
+/** Motor Subsystem
+ * Velocity, Raw Power Modes
+ * Uses: 1 Motor (encoder needed if using velocity control)
+ */
 public abstract class MotorSubsystem extends SwitchedStateMachine{
     protected MotorEx motor;
 

@@ -8,6 +8,10 @@ import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 
 import dev.frozenmilk.dairy.mercurial.ftc.Context;
 
+/** Intake
+ * Extends from motor subsystem
+ * Uses: 1 motor (intake)
+ */
 @Config
 public class Intake extends MotorSubsystem {
     public static double[] pidCoefficients = new double[] {1.0, 0.0, 0.0};

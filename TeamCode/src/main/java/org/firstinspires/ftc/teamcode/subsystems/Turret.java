@@ -4,14 +4,17 @@ import androidx.annotation.NonNull;
 
 import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.revhub.localizers.Encoder;
-import com.pedropathing.utils.Angle;
 import com.qualcomm.hardware.digitalchickenlabs.OctoQuad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.seattlesolvers.solverslib.hardware.motors.Motor;
 import com.seattlesolvers.solverslib.hardware.servos.ServoEx;
 import com.seattlesolvers.solverslib.hardware.servos.ServoExGroup;
+import com.seattlesolvers.solverslib.util.Direction;
 
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
+import org.firstinspires.ftc.teamcode.hardware.MotorEx;
+import org.firstinspires.ftc.teamcode.util.Angle;
+import org.firstinspires.ftc.teamcode.util.Range;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -19,122 +22,144 @@ import java.util.List;
 
 import dev.frozenmilk.dairy.mercurial.processes.Channel;
 import dev.frozenmilk.dairy.mercurial.processes.StateMachine;
+import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
+/** Turret
+ *
+ *  Robot Holding / Path Following modes
+ *  Uses: 2 Servos (1 Encoder -> which comes in as a sensor)
+ *  1) Left & Right Servo when staring from front intake area looking straight at the turret
+ */
 @Config
-public class Turret extends StateMachine {
-    //for now modeling as positional servos with same value, can change one or two to continuous later
-    Channel<Mode> switchModes = new Channel.Single<>();
-    ServoEx servo1;
-    ServoEx servo2;
-    ServoEx servo3;
-    //Encoder encoder;
+public class Turret extends SwitchedStateMachine {
+    ServoEx servoLeft;
+    ServoEx servoRight;
     ServoExGroup servoGroup;
-    OctoQuad octoquad;
-    private int encoderPosition = 0;
-    private int encoderPort = 2;
-    final int TICKS_ENCODER = 8182;//throughbore encoder ticks per revolution
-    List<Double> prevServoSetPosition;
-    private double startingPosition = 0.5;
+    public static Range servoRange = new Range(0, 1);
+    public static double SERVO_CENTER_POSITION = 0.5;
+    //can reference this if want to set to center in nonTurret class
 
+    //this is the servo position where angle 0 is defined
+    //turret launches ball in the direction of the intake <-> that is angle 0 and servo centered position value
+    public static boolean leftInverted = false, rightInverted = false;
+    public static Range angleRange = new Range(Math.toRadians(-194), Math.toRadians(194));
+    //Changing servo center position will require re-adjusting angle range accordingly
+
+
+    private Channel<Angle> targetHeadingsChannel = linkedSingleChannel();//receives a channel of target heading inputs for turret for sotm/lut
+    private Angle currentTurretAngle  = new Angle();
+    //obtained through encoder
+    Mode off;
+
+    //check if need to pass in start position from encoder to set to default position because can reset to absolute position
     public Turret(HardwareMap hardwareMap){
-        servo1 = new ServoEx(hardwareMap, ConfigNames.turretServo1);
-        servo2 = new ServoEx(hardwareMap, ConfigNames.turretServo2);
-        servo3 = new ServoEx(hardwareMap, ConfigNames.turretServo3);
+        servoLeft = new ServoEx(hardwareMap, ConfigNames.turretServo1);
+        servoRight = new ServoEx(hardwareMap, ConfigNames.turretServo2);
 
-        servoGroup = new ServoExGroup(servo1, servo2, servo3);
-        octoquad = hardwareMap.get(OctoQuad.class, ConfigNames.OCTOQUAD);
-        octoquad.setChannelBankConfig(OctoQuad.ChannelBankConfig.ALL_PULSE_WIDTH);
-        updateEncoder();
-    }
-    public Turret(HardwareMap hardwareMap, double startingPosition){
-        this(hardwareMap);
-        this.startingPosition = startingPosition;
-    }
+        servoGroup = new ServoExGroup(servoLeft, servoRight);
 
-    public int updateEncoder(){
-        encoderPosition = octoquad.readSinglePosition(encoderPort);
-        encoderPosition /= TICKS_ENCODER;
-        return encoderPosition;
-    }
-
-    public List<Double> getPreviousSetPosition(){
-        prevServoSetPosition = servoGroup.getPositions();
-        return prevServoSetPosition;
-    }
-
-
-    public class RawServoSet implements Mode{
-        double value;
-        //value from 0 - 1 for servo
-        public RawServoSet(double value){
-            this.value = value;
-        }
-
-        @Override
-        public void enter(@NotNull Mode previousMode){
-            servoGroup.set(value);
-        }
-
-        @NonNull
-        @Override
-        public Mode eval() {
-            Mode nextMode = switchModes.poll();
-            if(nextMode == null){
-                return this;
-            } else{
-                return nextMode;
-            }
-        }
-
-        @Override
-        public String toString(){
-            return "Servos Raw Set" + value;
-        }
-    }
-
-//    public class RawAngleSet implements Mode{
-//        Angle angle;
-//        public RawAngleSet(Angle angle){
-//            this.angle = angle;
-//        }
-//        @Override
-//        public void enter(@NotNull Mode previousMode){
-//            servoGroup.set(angle)
-//        }
-//        @NonNull
-//        @Override
-//        public Mode eval() {
-//            return null;
-//        }
-//    }
-    Mode disabled = new Mode() {
-        @Override
-        public void enter(@NotNull Mode previousMode){
+        off = mode(self -> {
             servoGroup.disable();
-        }
-        @NonNull
-        @Override
-        public Mode eval() {
-            Mode nextMode = switchModes.poll();
-            if(nextMode == null){
-                return this;
-            } else{
-                return nextMode;
-            }
-        }
+            return self;
+        });
+    }
 
-        @Override
-        public String toString(){
-            return "Idle";
-        }
-    };
+    public Channel<Angle> getTargetHeadingsChannel(){
+        return targetHeadingsChannel;
+    }
+
+
+    public Mode setRawPositionMode(double servoPosition){
+        return mode(self -> {
+            servoGroup.set(servoPosition);
+            return self;
+        });
+    }
+
+
+    //unoptimized angle setting
+    public Mode setRawAngleMode(Angle angle){
+        return mode(self -> {
+            servoGroup.set(convertAngleToServoRange(angle));
+            return self;
+        });
+    }
+
+    public Mode setOptimizedAngleMode(Angle angle){
+        return mode(self -> {
+            servoGroup.set(convertAngleToServoRange(optimizeAngle(angle)));
+            return self;
+        });
+    }
+
+    //continually sets position to target heading received through channel
+    //1) receive target heading (rad)
+    //2) convert that turret target heading position to angle
+    //3) convert that angle to a turret set position
+    //4) set servo group to that turret set position
+    public Mode trackingMode(){
+        return mode(self -> {
+            if(targetHeadingsChannel != null){
+                Angle targetAngle = targetHeadingsChannel.poll();
+                if(targetAngle != null) {
+                    servoGroup.set(convertAngleToServoRange(optimizeAngle(targetAngle)));
+                }
+            }
+            return self;
+        });
+    }
+
+    public void setRawPosition(double servoPosition){
+        switchTo(setRawPositionMode(servoPosition));
+    }
+    public void setRawAngle(Angle angle){
+        switchTo(setRawAngleMode(angle));
+    }
+    //this uses the optimized algorithm to minimize distance traveled considering warp arounds
+    public void setOptimizedAngle(Angle angle){
+        switchTo(setOptimizedAngleMode(angle));
+    }
+
+    public void setTrackignMode(){
+        switchTo(trackingMode());
+    }
+
+    public void off(){
+        switchTo(off);
+    }
 
 
 
     @NonNull
     @Override
     protected Mode init() {
-        return new RawServoSet(startingPosition);
+        return off;
+    }
+
+    private Angle optimizeAngle(Angle targetAngle) {
+        Angle bestCandidate = new Angle();
+        Angle targetAngleWrapped = targetAngle.wrap();
+        Angle minGap = Angle.fromRadians(Double.MAX_VALUE);
+        Angle[] candidates = {
+                targetAngleWrapped,
+                targetAngleWrapped.sub(Angle.fromRadians(2 * Math.PI)),
+                targetAngleWrapped.add(Angle.fromRadians(2 * Math.PI))
+        };
+
+        for (Angle candidate : candidates) {
+            if (!angleRange.contains(candidate.toRadians())) continue;
+            Angle gap = currentTurretAngle.sub(candidate).abs();
+            if (gap.less(minGap)) {
+                minGap = gap;
+                bestCandidate = candidate;
+            }
+        }
+
+        return bestCandidate;
+    }
+
+    public double convertAngleToServoRange(Angle angle){
+        return angleRange.toRange(angle.toRadians(), servoRange);
     }
 
 
