@@ -33,7 +33,6 @@ public class IncrementalEncoder {
         encoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         encoder.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         encoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        //THIS IS WHAT IS LIKELY CAUSING ERROR
     }
 
     /**

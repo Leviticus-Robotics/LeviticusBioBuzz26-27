@@ -48,7 +48,7 @@ public class Shooter extends SwitchedStateMachine {
     public static Pose AIM_BLUE_FAR = new Pose(61, 67);
     public static Pose AIM_RED_CLOSE = new Pose(141.5 - 61, 55);
     public static Pose AIM_RED_FAR = new Pose(141.5 - 61, 67);
-    public double previousVoltage;
+    public double currentVoltage;
     private Telemetry.Item stateTelemetry;
     Mode off;
     AimCalculator aimCalculator;
@@ -181,7 +181,8 @@ public class Shooter extends SwitchedStateMachine {
                                 AimCalculator.distances[AimCalculator.distances.length - 1]
                         );
 
-                        shooterLeft.set(targetVelocity);
+                        //pass in current voltage as long as value is valid
+                        shooterLeft.set(targetVelocity, currentVoltage > 0 ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
                         if(targetHeadingChannel != null) {
                             targetHeadingChannel.send(solution[1]);//send target heading over through channel
                         }
@@ -242,7 +243,8 @@ public class Shooter extends SwitchedStateMachine {
                     if(targetHeadingChannel != null) {
                         targetHeadingChannel.send(aimCalculator.getTargetHeading(robotPose, targetShootPose));
                     }
-                    motorGroup.set(targetVelocity);
+                    //pass in current voltage as long as value is valid
+                    shooterLeft.set(targetVelocity, currentVoltage > 0 ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
 
                     if (resultChannel != null && !notified[0]) {
                         if (isAtVelocity(targetVelocity, tolerance)) {
@@ -351,6 +353,13 @@ public class Shooter extends SwitchedStateMachine {
     public double getError(double targetVelocity){//keep sign here
         return getVelocity() - targetVelocity;
     }
+
+    public void updateVoltage(double voltage){
+        if(voltage > 0){
+            this.currentVoltage = voltage;
+        }
+    }
+
 
     public enum VelocityStatus{
         AtTarget,

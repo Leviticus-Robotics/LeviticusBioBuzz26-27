@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.subsystems;
 
 import androidx.annotation.NonNull;
 
+import com.acmerobotics.dashboard.config.Config;
+
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 
@@ -19,6 +21,8 @@ public abstract class MotorSubsystem extends SwitchedStateMachine{
 
     protected Telemetry.Item stateTelemetry;
     protected Mode offMode;
+    private double currentVoltage;
+    public static boolean VOLTAGE_COMPENSATION = false;
     public enum VelocityStatus{
         AtTarget
     }
@@ -30,7 +34,7 @@ public abstract class MotorSubsystem extends SwitchedStateMachine{
                     motor.setRunMode(MotorEx.RunMode.VelocityControl);
                 },
                 self -> {
-                    motor.set(targetVelocity);
+                    motor.set(targetVelocity, currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
                     if (resultChannel != null && notified[0] == false) {
                         if (isAtVelocity(targetVelocity, tolerance)) {
                             notified[0] = true;
@@ -41,6 +45,9 @@ public abstract class MotorSubsystem extends SwitchedStateMachine{
                 });
     }
 
+    public boolean useVoltageCompensation(){
+        return false;
+    }
 
     public void fixedVelocity(double targetVelocity){
         switchTo(fixedVelocityMode(targetVelocity, 0, null));
@@ -96,5 +103,10 @@ public abstract class MotorSubsystem extends SwitchedStateMachine{
         return getVelocity() - targetVelocity;
     }
 
+    public void updateVoltage(double voltage){
+        if(voltage > 0){
+            this.currentVoltage = voltage;
+        }
+    }
 
 }

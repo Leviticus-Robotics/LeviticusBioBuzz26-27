@@ -18,6 +18,17 @@ public class ConfigNames {
     public static String transfer = "transfer";
     public static String turretServo1 = "ts1";
     public static String turretServo2 = "ts2";
+    public static String turretAnalogEncoder = "tAE";
+    public static String turretQuadratureEncoder = "intake";//motor of intake motor
 
     public static String flowerMechanism = "wedge";
+
+    public static String gobildaLeft1 = "g1";
+    public static String gobildaLeft2 = "g2";
+    public static String gobildaRight1 = "g3";
+    public static String gobildaRight2 = "g4";
+
+    public static String breaker1 = "b1";
+    public static String breaker2 = "b2";
+
 }

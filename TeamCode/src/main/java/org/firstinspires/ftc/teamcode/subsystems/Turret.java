@@ -11,6 +11,7 @@ import com.seattlesolvers.solverslib.hardware.servos.ServoEx;
 import com.seattlesolvers.solverslib.hardware.servos.ServoExGroup;
 import com.seattlesolvers.solverslib.util.Direction;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 import org.firstinspires.ftc.teamcode.util.Angle;
@@ -20,6 +21,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 
+import dev.frozenmilk.dairy.mercurial.ftc.Context;
 import dev.frozenmilk.dairy.mercurial.processes.Channel;
 import dev.frozenmilk.dairy.mercurial.processes.StateMachine;
 import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
@@ -50,15 +52,18 @@ public class Turret extends SwitchedStateMachine {
     private Angle currentTurretAngle  = new Angle();
     //obtained through encoder
     Mode off;
+    protected Telemetry.Item stateTelemetry;
 
     //check if need to pass in start position from encoder to set to default position because can reset to absolute position
-    public Turret(HardwareMap hardwareMap){
-        servoLeft = new ServoEx(hardwareMap, ConfigNames.turretServo1);
-        servoRight = new ServoEx(hardwareMap, ConfigNames.turretServo2);
+    public Turret(Context ctx){
+        stateTelemetry = ctx.telemetry().addData("Turret/State", "unknown");
+        servoLeft = new ServoEx(ctx.hardwareMap(), ConfigNames.turretServo1);
+        servoRight = new ServoEx(ctx.hardwareMap(), ConfigNames.turretServo2);
 
         servoGroup = new ServoExGroup(servoLeft, servoRight);
 
         off = mode(self -> {
+            stateTelemetry.setValue("off");
             servoGroup.disable();
             return self;
         });
@@ -71,6 +76,7 @@ public class Turret extends SwitchedStateMachine {
 
     public Mode setRawPositionMode(double servoPosition){
         return mode(self -> {
+            stateTelemetry.setValue("Raw Position Set ( " + servoPosition + ")");
             servoGroup.set(servoPosition);
             return self;
         });
@@ -80,6 +86,7 @@ public class Turret extends SwitchedStateMachine {
     //unoptimized angle setting
     public Mode setRawAngleMode(Angle angle){
         return mode(self -> {
+            stateTelemetry.setValue("Raw Angle Set ( " + angle.toDegrees() + " deg)");
             servoGroup.set(convertAngleToServoRange(angle));
             return self;
         });
@@ -87,6 +94,7 @@ public class Turret extends SwitchedStateMachine {
 
     public Mode setOptimizedAngleMode(Angle angle){
         return mode(self -> {
+            stateTelemetry.setValue("Optimized Angle Set ( " + angle.toDegrees() + " deg)");
             servoGroup.set(convertAngleToServoRange(optimizeAngle(angle)));
             return self;
         });
@@ -101,8 +109,12 @@ public class Turret extends SwitchedStateMachine {
         return mode(self -> {
             if(targetHeadingsChannel != null){
                 Angle targetAngle = targetHeadingsChannel.poll();
+
                 if(targetAngle != null) {
+                    stateTelemetry.setValue("Tracking Angle ( " + targetAngle.toDegrees() + " deg)");
                     servoGroup.set(convertAngleToServoRange(optimizeAngle(targetAngle)));
+                } else{
+                    stateTelemetry.setValue("Tracking Angle: null");
                 }
             }
             return self;

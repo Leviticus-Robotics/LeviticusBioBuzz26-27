@@ -18,6 +18,7 @@ public class Intake extends MotorSubsystem {
     public static double[] feedforwardCoefficients = new double[]{0, 0, 0};
     public static boolean usePIDCoefficients = false;
     public static boolean useFeedforwardCoefficients = false;
+    public static boolean voltageCompesnation = false;
 
     public Intake(Context ctx){
         stateTelemetry = ctx.telemetry().addData("Intake/State", "unknown");
@@ -36,6 +37,11 @@ public class Intake extends MotorSubsystem {
                 stateTelemetry.setValue("Off");
         });
 
+    }
+
+    @Override
+    public boolean useVoltageCompensation(){
+        return voltageCompesnation;
     }
 
 }
