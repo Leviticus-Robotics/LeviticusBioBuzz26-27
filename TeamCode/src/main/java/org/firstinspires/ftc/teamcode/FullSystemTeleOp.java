@@ -4,7 +4,6 @@ import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.express
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.loop;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.noop;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.seconds;
-import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitFor;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.canvas.Canvas;
@@ -15,6 +14,7 @@ import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.ManualDrive;
 import com.pedropathing.math.Pose;
 import com.pedropathing.utils.Timer;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
@@ -27,12 +27,15 @@ import java.util.concurrent.TimeUnit;
 import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
+import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager.EventHandled;
 import dev.frozenmilk.dairy.mercurial.processes.Fiber;
 
+@Deprecated
+@Disabled
 @Config
-public class FullPrototypeTest{
+public class FullSystemTeleOp {
     final static Pose defaultPose = new Pose(0, 0, Math.toRadians(90));
     public static double fixedPower = 0.55;
     public static double velocity = 950;
@@ -47,12 +50,13 @@ public class FullPrototypeTest{
 
     public static MercurialFTC.RegisterableProgram teleOp(Pose pose){
         return MercurialFTC.teleop(ctx -> {
-            MercurialFollower follower = Constants.createMercurial(ctx.hardwareMap());
-            Shooter shooter = new Shooter(ctx.hardwareMap(), follower.localizationEventManager(), ctx.hardwareMap().voltageSensor.iterator().next());
-            Drivetrain drivetrain = new Drivetrain(follower);
-            Intake intake = new Intake(ctx.hardwareMap());
+            MercurialFollower follower = Constants.createFollower(ctx.hardwareMap());
+            MercurialLocalizer localizer = Constants.createLocalizer(ctx.hardwareMap());
+            Shooter shooter = new Shooter(ctx.hardwareMap(), follower., ctx.hardwareMap().voltageSensor.iterator().next());
+            Drivetrain drivetrain = new Drivetrain(ctx);
+            Intake intake = new Intake(ctx);
             Timer timer = new Timer();
-            follower.localizer().setPose(pose);
+            localizer.setPose(pose);
             FtcDashboard dashboard = FtcDashboard.getInstance();
 
 
@@ -73,7 +77,7 @@ public class FullPrototypeTest{
                             driveSettings.fieldCentric = !driveSettings.fieldCentric;
                         }
                         else if(event.bWasPressed()){
-                            follower.localizer().setPose(defaultPose);
+                            localizer.setPose(defaultPose);
                         }
 
                         double multiplier = driveSettings.slowMode ? 0.4 : 1;
@@ -91,7 +95,7 @@ public class FullPrototypeTest{
                                             event.leftStickX() * multiplier,
                                             -event.leftStickY() * multiplier,
                                             -event.rightStickY() * multiplier,
-                                            follower.localizer().pose().heading()
+                                            localizer.pose().heading()
                                     )
                             );
 
@@ -159,13 +163,13 @@ public class FullPrototypeTest{
                                     telemetry.addData("Field Centric", driveSettings.fieldCentric);
                                     telemetry.addData("Slow Mode", driveSettings.slowMode);
                                     telemetry.addData("Drivetrain Mode", drivetrain.mode());
-                                    Pose robotPose = follower.localizer().pose();;
+                                    Pose robotPose = localizer.pose();;
                                     telemetry.addData("Pose x", robotPose.x());
                                     telemetry.addData("Pose y", robotPose.y());
                                     telemetry.addData("Pose Heading(Deg)", convertToRadians(robotPose.heading()));
                                     telemetry.addData("Shooter Velocity", shooter.getVelocity());
                                     telemetry.addData("Shooter Mode", shooter.mode());
-                                    telemetry.addData("Previous Voltage", shooter.previousVoltage);
+                                    telemetry.addData("Previous Voltage", shooter.currentVoltage);
                                     telemetry.addData("Intake Mode", intake.mode());
                                     telemetry.update();
 
@@ -212,11 +216,11 @@ public class FullPrototypeTest{
 
     public static double convertToRadians(double heading){
         double headingDeg = heading * 180.00 / Math.PI;
-        while(headingDeg < 0){
-            headingDeg += 360;
+        while(headingDeg < 0d){
+            headingDeg += 360d;
         }
-        while(headingDeg > 360){
-            headingDeg -= 360;
+        while(headingDeg > 360d){
+            headingDeg -= 360d;
         }
         return headingDeg;
     }

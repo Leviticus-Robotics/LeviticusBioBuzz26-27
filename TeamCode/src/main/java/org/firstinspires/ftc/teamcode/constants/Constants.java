@@ -25,6 +25,7 @@ import org.firstinspires.ftc.teamcode.localization.pedro.FusionMecanumDrivetrain
 import org.firstinspires.ftc.teamcode.localization.pedro.FusionFollower;
 
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
+import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
 
 @Config
 public class Constants {
@@ -133,6 +134,12 @@ public class Constants {
                 new OctoQuadLocalizer(h, localizerConfig),
                 new Mecanum(h, driveConfig),
                 new Foresight(foresightConfig)
+        );
+    }
+
+    public static MercurialLocalizer createLocalizer(HardwareMap h) {
+        return new MercurialLocalizer(
+                new OctoQuadLocalizer(h, localizerConfig)
         );
     }
 }

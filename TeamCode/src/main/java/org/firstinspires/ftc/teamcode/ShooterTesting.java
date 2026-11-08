@@ -39,8 +39,7 @@ public class ShooterTesting{
 
     public static MercurialFTC.RegisterableProgram teleOp(Pose pose){
         return MercurialFTC.teleop(ctx -> {
-            EventManager<Double> voltageEventManager = new EventManager<>();
-            Shooter shooter = new Shooter(ctx.hardwareMap());
+            Shooter shooter = new Shooter(ctx);
 
             class DriveSettings{
                 boolean fieldCentric = false;

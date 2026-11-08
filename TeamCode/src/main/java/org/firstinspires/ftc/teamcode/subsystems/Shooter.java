@@ -5,218 +5,354 @@ import androidx.annotation.NonNull;
 import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.localization.MotionState;
 import com.pedropathing.math.Pose;
-import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.hardware.VoltageSensor;
+import com.pedropathing.math.Vector;
+import com.pedropathing.math.Vector2D;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.seattlesolvers.solverslib.hardware.motors.Motor;
+import com.seattlesolvers.solverslib.hardware.motors.MotorGroup;
 import com.seattlesolvers.solverslib.util.InterpLUT;
+import com.seattlesolvers.solverslib.util.MathUtils;
 
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.game.SIDE;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
-import org.jetbrains.annotations.NotNull;
-
+import org.firstinspires.ftc.teamcode.util.Angle;
+import org.firstinspires.ftc.teamcode.util.MathFunctions;
+import dev.frozenmilk.dairy.mercurial.ftc.Context;
 import dev.frozenmilk.dairy.mercurial.processes.Channel;
-import dev.frozenmilk.dairy.mercurial.processes.EventManager;
-import dev.frozenmilk.dairy.mercurial.processes.Spawnable;
-import dev.frozenmilk.dairy.mercurial.processes.StateMachine;
+import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
+
 import org.firstinspires.ftc.teamcode.game.ALLIANCE;
 
+
+/** Shooter
+ * Modes: SOTM w/ LUT, Static LUT, Raw Power, Raw Velocity, Off
+ * Uses: 2 motors (shooter) attached to the same axle
+ * Using Motor Group so that only PID one motor, set the other to the same values
+ */
 @Config
-public class Shooter extends StateMachine {
-    public MotorEx shooter;
-    Channel<MotionState> motionStates = new Channel.Single<>();
-    Channel<Mode> switchModes = new Channel.Single<>();
-    Channel<Double> voltageChannel = new Channel.Queue<>();
+//Single Shooter Motor: LUT Mode, SOTM, Regular Velocity, Regular Power
+public class Shooter extends SwitchedStateMachine {
+    MotorGroup motorGroup;
+    public MotorEx shooterLeft; // motor wire is left
+    public MotorEx shooterRight; // motor wire is right
+    Channel<MotionState> motionStates = linkedSingleChannel();
     public static double[] pidCoefficients = new double[] {0.003, 0.0, 0.0};
     public static double[] feedforwardCoefficients = new double[]{0.0291871, 0.000355203, 0};
     public static boolean usePIDCoefficients = true;
     public static boolean useFeedforwardCoefficients = true;
-    public static double[] distances =  new double[] {20,   30,   40,   50,   60,   70,  80};
-    public static double[] velocities = new double[] {700, 900, 1000, 1050, 1100, 1200, 1250};
-
-    public static boolean DIRECTION_REVERSE = false;
+//    public static boolean DIRECTION_REVERSE = false;
 
     public static Pose AIM_BLUE_CLOSE = new Pose(61, 55);
     public static Pose AIM_BLUE_FAR = new Pose(61, 67);
     public static Pose AIM_RED_CLOSE = new Pose(141.5 - 61, 55);
     public static Pose AIM_RED_FAR = new Pose(141.5 - 61, 67);
-    InterpLUT interpLUT;//distance to velocity interpLUT
-    public double previousVoltage;
-    boolean voltageNull = false;
-    VoltageSensor voltageSensor;
-    public Shooter(HardwareMap hardwareMap, EventManager<MotionState> localizationEventManager, VoltageSensor voltageSensor){
-        shooter = new MotorEx(hardwareMap, ConfigNames.shooter);
-        shooter.setRunMode(Motor.RunMode.VelocityControl);
-        shooter.setInverted(DIRECTION_REVERSE);
+    public double currentVoltage;
+    private double currentTargetVelocity;
+    private Telemetry.Item stateTelemetry;
+    Mode off;
+    AimCalculator aimCalculator;
+    public static double DEFAULT_TOLERANCE = 50;
+    Channel<Angle> targetHeadingChannel;
+
+    //Express Constants in terms of lines (array of 4): (m1, b1, m2, b2)
+    //This is for close side, far side is just the opposite but uses the same constants
+    public static double[] WITHIN_SHOOTING_RANGE = new double[]{1, 10, -1, 154};
+    public Shooter(Context ctx){
+        stateTelemetry = ctx.telemetry().addData("Shooter/State", "unknown");
+        aimCalculator = new AimCalculator();
+
+        shooterLeft = new MotorEx(ctx.hardwareMap(), ConfigNames.shooterLeft);
+        shooterRight = new MotorEx(ctx.hardwareMap(), ConfigNames.shooterRight);
+        shooterLeft.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooterRight.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        shooterRight.setInverted(true);//need to invert one of them first
+
+        motorGroup = new MotorGroup(shooterLeft, shooterRight);
+        motorGroup.setRunMode(Motor.RunMode.VelocityControl);
+
         if(usePIDCoefficients){
-            shooter.setVeloCoefficients(pidCoefficients[0], pidCoefficients[1], pidCoefficients[2]);
+            motorGroup.setVeloCoefficients(pidCoefficients[0], pidCoefficients[1], pidCoefficients[2]);
         }
         if(useFeedforwardCoefficients){
-            shooter.setFeedforwardCoefficients(feedforwardCoefficients[0], feedforwardCoefficients[1], feedforwardCoefficients[2]);
+            motorGroup.setFeedforwardCoefficients(feedforwardCoefficients[0], feedforwardCoefficients[1], feedforwardCoefficients[2]);
         }
-        localizationEventManager.addHandler(motionStateForwarder);
-        this.voltageSensor = voltageSensor;
 
-        interpLUT = new InterpLUT();
-        for(int i = 0; i < distances.length; i++){
-            interpLUT.add(distances[i], velocities[i]);
-        }
-        interpLUT.createLUT();
+
+        off = entranceMode(from -> {
+            shooterLeft.setRunMode(Motor.RunMode.RawPower);
+            shooterLeft.set(0);
+            stateTelemetry.setValue("off");
+        });
     }
 
-    public Shooter(HardwareMap hardwareMap){
-        shooter = new MotorEx(hardwareMap, ConfigNames.shooter);
-        shooter.setRunMode(Motor.RunMode.VelocityControl);
-        shooter.setInverted(DIRECTION_REVERSE);
-        if(usePIDCoefficients){
-            shooter.setVeloCoefficients(pidCoefficients[0], pidCoefficients[1], pidCoefficients[2]);
-        }
-        if(useFeedforwardCoefficients){
-            shooter.setFeedforwardCoefficients(feedforwardCoefficients[0], feedforwardCoefficients[1], feedforwardCoefficients[2]);
-        }
-//        localizationEventManager.addHandler(motionStateForwarder);
-//        voltageEventManager.addHandler(voltageForwarder);
 
-        interpLUT = new InterpLUT();
-        for(int i = 0; i < distances.length; i++){
-            interpLUT.add(distances[i], velocities[i]);
+    @Config
+    public static class AimCalculator{
+        public InterpLUT distToVel;
+        public InterpLUT distToKCorrection;
+        public static double[] distances =           new double[]{20,   30,   40,   50,   60,   70,  80};
+        public static double[] velocities =          new double[]{700, 900, 1000, 1050, 1100, 1200, 1250};
+        public static double[] velCorrectionFactor = new double[]{0.4, 0.5, 0.6,  0.54, 0.85, 0.9,  0.96}; // take time in the air and then subtract a bit
+        public static int iterations = 10;
+        public static double robotHeadingAimCorrectionFactor = -0;
+        public AimCalculator() {
+            distToVel = new InterpLUT();
+            distToKCorrection = new InterpLUT();
+            for (int i = 0; i < distances.length; i++) {
+                distToVel.add(distances[i], velocities[i]);
+                distToKCorrection.add(distances[i], velCorrectionFactor[i]);
+            }
+            distToVel.createLUT();
+            distToKCorrection.createLUT();
         }
-        interpLUT.createLUT();
+
+
+        //reference code: madness last year repo(TwoWheelShooter2 class) https://github.com/MidKnightMadness/MidknightMadnessDecode25-26/settings/access
+        //Ryan double check the math/vector logic
+        /**
+         * Calculate target powers and heading.<br>
+         * Algorithm:<br>
+         * 1. Act like you're aiming for a distance d<br>
+         * 2. Simulate error for shooting with distance d, making sure the parallel component of the error is 0<br>
+         * 3. Update d by adding the error<br>
+         * 4. Repeat steps 1-3 to iterative refine d
+         * @param pose     The robot pose
+         * @param velocity The robot velocity
+         * @return velocity, heading
+         */
+        public double[] targetPowersHeading(Pose pose, Vector velocity, Pose targetPose) {
+            Vector2D gap = targetPose.minus(pose).toVector2D();
+            Vector2D dirParallel = gap.normalized();
+            Vector2D dirPerp = Vector2D.cartesian(dirParallel.x(), dirParallel.y());
+            dirPerp.rotate(-Math.PI / 2);
+            double velParallel = velocity.dot(dirParallel.toVector()); // component parallel to line from robot to target pose
+            double velPerp = velocity.dot(dirPerp.toVector()); // left is negative, right is positive
+
+            double realDist = targetPose.distance(pose);
+            double targetDist = realDist;
+            double headingCorrection = 0;
+            for (int i = 0; i < iterations; i++) {
+                // Steps 1-2: simulation
+                targetDist = MathUtils.clamp(targetDist, distances[0]+0.01, distances[distances.length - 1]-0.01); // find a better way later
+                double kCorr = distToKCorrection.get(targetDist);
+                double predict = targetDist + kCorr * velParallel;
+                double predictPerp = kCorr * velPerp;
+                double predictParallel = Math.sqrt(
+                        Math.max(0, predict * predict - predictPerp * predictPerp)
+                );
+                headingCorrection = Math.atan2(predictPerp, predictParallel);
+                // Steps 3-4: error and update
+                double distanceIdeal = predictParallel != 0 ? (realDist / predictParallel) * predict : realDist;//changed for divide by zero error
+                // d + correction + error = ideal d
+                // (d + error) + correction = ideal d, update d += error
+                targetDist += distanceIdeal - predict;
+            }
+
+            targetDist = MathUtils.clamp(targetDist, distances[0]+0.01, distances[distances.length - 1]-0.01); // find a better way later
+
+            return new double[]{
+                    distToVel.get(targetDist),
+                    MathFunctions.normalizeAngle(targetPose.minus(pose).heading() + headingCorrection)
+            };
+        }
+
+        public double getTargetHeading(Pose pose, Pose targetPose){
+            return MathFunctions.normalizeAngle(targetPose.minus(pose).heading());
+        }
+
     }
 
-    public class LUTStatic implements Mode{
-        ALLIANCE alliance;
-        SIDE side;
-        public LUTStatic(ALLIANCE alliance, SIDE side){
-            this.alliance = alliance;
-            this.side = side;
-        }
+    public Mode lutSOTMMode(
+            ALLIANCE alliance,
+            SIDE side,
+            Channel<Shooter.VelocityStatus> resultChannel,
+            double tolerance
+        ){
+        boolean[] notified = new boolean[1];
+        return egressMode(self -> {//used so that if it switches mode, it performs second block logic
+                    stateTelemetry.setValue("LUT SOTM (" + alliance + " " + side);
+                    motorGroup.setRunMode(MotorEx.RunMode.VelocityControl);
+                    MotionState motionState = motionStates.query();//query to keep for now
+                    if(motionState != null) {
+                        Pose robotPose = motionState.pose();
+                        Pose targetShootPose = getPose(alliance, side);
 
-        @Override
-        public void enter(@NotNull Mode previousMode){
-            shooter.setRunMode(Motor.RunMode.VelocityControl);
-        }
-        @NonNull
-        @Override
-        public Mode eval() {
-            MotionState motionState = motionStates.poll();
-            Pose robotPose = motionState.pose();
-            Pose targetShootPose = getPose(alliance, side);
+                        double[] solution = aimCalculator.targetPowersHeading(robotPose, motionState.velocity().toVector(), targetShootPose);
+                        double targetVelocity = MathUtils.clamp(
+                                solution[0],
+                                AimCalculator.distances[0],
+                                AimCalculator.distances[AimCalculator.distances.length - 1]
+                        );
 
-            double distance = robotPose.distance(targetShootPose);
-            double targetVelocity = interpLUT.get(distance);
+                        //pass in current voltage as long as value is valid
+                        shooterLeft.set(targetVelocity, currentVoltage > 0 ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
+                        currentTargetVelocity = targetVelocity;//need to update here
+                        if(targetHeadingChannel != null) {
+                            targetHeadingChannel.send(Angle.fromRadians(solution[1]));//send target heading over through channel
+                        }
 
-            double currentVoltage = voltageSensor.getVoltage();
-            shooter.set(targetVelocity, currentVoltage);
-
-            Mode mode = switchModes.poll();
-            if(mode == null){
-                return this;
-            } else{
-                return mode;
-            }
-        }
+                        if (resultChannel != null && !notified[0]) {
+                            if (isAtVelocity(targetVelocity, tolerance)) {
+                                notified[0] = true;
+                                resultChannel.sendIfEmpty(VelocityStatus.AtTarget);
+                            }
+                        }
+                    }
+                    return self;
+                },
+                self -> {
+                    if(resultChannel != null){
+                        resultChannel.sendIfEmpty(VelocityStatus.Cancelled);
+                    }
+                }
+        );
+    }
+    public Mode lutSOTMMode(ALLIANCE alliance, SIDE side, double tolerance){
+        return lutSOTMMode(alliance, side, null, tolerance);
     }
 
-    public class Fixed implements Mode{
-        double value;
-        boolean useVelocity;
-        //value either 0 - 1 for motor power or in velocity
-        public Fixed(double value, boolean useVelocity){
-            this.value = value;
-            this.useVelocity = useVelocity;
-        }
-
-        @Override
-        public void enter(@NotNull Mode previousMode){
-             if(useVelocity) {
-                 shooter.setRunMode(Motor.RunMode.VelocityControl);
-                 shooter.set(value);
-             }
-             else{
-                 shooter.setRunMode(Motor.RunMode.RawPower);
-                 shooter.set(value);
-             }
-
-        };
-
-
-        @NonNull
-        @Override
-        public Mode eval() {
-            if(useVelocity) {
-                shooter.setRunMode(Motor.RunMode.VelocityControl);
-                double currentVoltage = voltageSensor.getVoltage();
-                shooter.set(value, currentVoltage);
-            }
-            else{
-                shooter.setRunMode(Motor.RunMode.RawPower);
-                shooter.set(value);
-            }
-
-            Mode nextMode = switchModes.poll();
-            if(nextMode == null){
-                return this;
-            } else{
-                return nextMode;
-            }
-        }
-
-        @Override
-        public String toString(){
-            return "Fixed{value =" + value +
-                    ",useVelocity=" + useVelocity;
-        }
+    public Mode lutSOTMMode(ALLIANCE alliance, SIDE side){
+        return lutSOTMMode(alliance, side, null, DEFAULT_TOLERANCE);
     }
 
-    Mode idle = new Mode() {
-        @Override
-        public void enter(@NotNull Mode previousMode){
-            shooter.setRunMode(Motor.RunMode.RawPower);
-            shooter.set(0);
-        }
-        @NonNull
-        @Override
-        public Mode eval() {
-            Mode nextMode = switchModes.poll();
-            if(nextMode == null){
-                return this;
-            } else{
-                return nextMode;
-            }
-        }
+    public void lutSOTM(ALLIANCE alliance, SIDE side, double tolerance){
+        switchTo(lutSOTMMode(alliance, side, tolerance));
+    }
+    public void lutSOTM(ALLIANCE alliance, SIDE side){
+        switchTo(lutSOTMMode(alliance, side));
+    }
 
-        @Override
-        public String toString(){
-            return "Idle";
-        }
-    };
+    //two channels used: one for the target heading(to go to turret or save) & one for velocity status
+    public Mode lutStaticMode(
+              ALLIANCE alliance,
+              SIDE side,
+              Channel<Shooter.VelocityStatus> resultChannel,
+              double tolerance
+        ){
+        boolean[] notified = new boolean[1];
+        return egressMode(self -> {//used so that if it switches mode, it performs second block logic
+                stateTelemetry.setValue("LUT Static (" + alliance + " " + side);
+                motorGroup.setRunMode(MotorEx.RunMode.VelocityControl);
+                MotionState motionState = motionStates.query();//query for now
+                if(motionState != null) {
+                    Pose robotPose = motionState.pose();
+                    Pose targetShootPose = getPose(alliance, side);
+
+                    double distance = robotPose.distance(targetShootPose);
+                    double targetVelocity = MathUtils.clamp(
+                            aimCalculator.distToVel.get(distance),
+                            AimCalculator.distances[0],
+                            AimCalculator.distances[AimCalculator.distances.length - 1]
+                    );
+
+                    currentTargetVelocity = targetVelocity; // need to update
+                    if(targetHeadingChannel != null) {
+                        targetHeadingChannel.send(Angle.fromRadians(aimCalculator.getTargetHeading(robotPose, targetShootPose)));
+                    }
+                    //pass in current voltage as long as value is valid
+                    shooterLeft.set(targetVelocity, currentVoltage > 0 ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
+
+                    if (resultChannel != null && !notified[0]) {
+                        if (isAtVelocity(targetVelocity, tolerance)) {
+                            notified[0] = true;
+                            resultChannel.sendIfEmpty(VelocityStatus.AtTarget);
+                        }
+                    }
+                }
+                return self;
+            },
+            self -> {
+                if(resultChannel != null){
+                    resultChannel.sendIfEmpty(VelocityStatus.Cancelled);
+                }
+            }
+        );
+    }
+    public Mode lutStaticMode(ALLIANCE alliance, SIDE side, double tolerance){
+        return lutStaticMode(alliance, side, null, tolerance);
+    }
+
+    public Mode lutStaticMode(ALLIANCE alliance, SIDE side){
+        return lutStaticMode(alliance, side, null, DEFAULT_TOLERANCE);
+    }
+
+    public void lutStatic(ALLIANCE alliance, SIDE side, double tolerance){
+        switchTo(lutStaticMode(alliance, side, tolerance));
+    }
+
+    public void lutStatic(ALLIANCE alliance, SIDE side){
+        switchTo(lutStaticMode(alliance, side));
+    }
+
     @NonNull
     @Override
     protected Mode init() {
-        return idle;
+        return off;
     }
 
-    EventManager.Handler<MotionState> motionStateForwarder = motionState -> {
-        motionStates.send(motionState);
-        if(fiber().status().alive()) {
-            return EventManager.EventHandled.ok();
-        } else{
-            return EventManager.EventHandled.remove();
-        }
-    };
 
-//    EventManager.Handler<Double> voltageForwarder = voltage -> {
-//        voltageChannel.send(voltage);
-//        previousVoltage = voltage;
-//        if(fiber().status().alive()){
-//            return EventManager.EventHandled.ok();
-//        } else{
-//            return EventManager.EventHandled.remove();
-//        }
-//    };
+    private Mode fixedVelocityMode(double targetVelocity, double tolerance, Channel<Shooter.VelocityStatus> resultChannel){
+        boolean[] notified = new boolean[1];
+        currentTargetVelocity = targetVelocity;
+        return egressMode(self -> {
+                stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
+                motorGroup.setRunMode(MotorEx.RunMode.VelocityControl);
+                motorGroup.set(targetVelocity);
+                if (resultChannel != null && notified[0] == false) {
+                    if (isAtVelocity(targetVelocity, tolerance)) {
+                        notified[0] = true;
+                        resultChannel.sendIfEmpty(Shooter.VelocityStatus.AtTarget);
+                    }
+                }
+                return self;
+            }, self -> {
+                if(resultChannel != null){
+                    resultChannel.sendIfEmpty(VelocityStatus.Cancelled);
+                }
+            });
+    }
 
+    //this will be the channel that the target heading gets sent over to
+    public void setHeadingChannel(Channel<Angle> channel){
+        targetHeadingChannel = channel;
+    }
+
+
+    public void fixedVelocity(double targetVelocity){
+        switchTo(fixedVelocityMode(targetVelocity, DEFAULT_TOLERANCE, null));
+    }
+
+    public void fixedVelocity(double targetVelocity, double tolerance) {
+        switchTo(fixedVelocityMode(targetVelocity, tolerance, null));
+    }
+
+    public void fixedVelocity(double targetVelocity, double tolerance, Channel<Shooter.VelocityStatus> resultChannel) {
+        switchTo(fixedVelocityMode(targetVelocity, tolerance, resultChannel));//if result channel is null, it will pass in null to third parameter
+    }
+
+
+
+    private Mode fixedPowerMode(double power){//parametrized so it keeps holding the velocity
+        return entranceMode(
+                from -> {
+                    stateTelemetry.setValue("Fixed Power (" + power + ")");
+                    motorGroup.setRunMode(MotorEx.RunMode.RawPower);
+                    motorGroup.set(power);
+                }
+        );
+    }
+
+
+    public void fixedPower(double power){
+        switchTo(fixedPowerMode(power));
+    }
+
+    public void off(){
+        switchTo(off);
+    }
 
     public Pose getPose(ALLIANCE alliance, SIDE side){
         if(alliance == ALLIANCE.BLUE){
@@ -226,19 +362,61 @@ public class Shooter extends StateMachine {
         }
     }
 
-    public void idle(){
-        switchModes.send(idle);
-    }
-    public void fixed(double value, boolean useVelocity){
-        switchModes.send(new Fixed(value, useVelocity));
+    public double getVelocity(){//returns velocity in ticks/sec
+        return motorGroup.getVelocity();//need to check that this method works correctly
     }
 
+    public double getError(double targetVelocity){//keep sign here
+        return getVelocity() - targetVelocity;
+    }
 
-
-    public double getVelocity(){
-        return shooter.getVelocity();
+    public void updateVoltage(double voltage){
+        if(voltage > 0){
+            this.currentVoltage = voltage;
+        }
     }
 
 
 
+    //Conditions to start shooting automatically: 1) atVelocity && inside the zone
+    public boolean isAtVelocity(double targetVelocity, double tolerance){//an invalid tolerance assumed to be no tolerance
+        if(tolerance != 0) {
+            return Math.abs(getVelocity() - targetVelocity) <= Math.abs(tolerance);
+        } return true;
+    }
+    public boolean isAtVelocity(double tolerance){
+        return isAtVelocity(currentTargetVelocity, tolerance);
+    }
+
+
+    //pass in side you're shooting from
+    //if close side, it has to be less than both of the lines
+    //if far side, it has to be greater than boht of the lines
+    public boolean isValidShootPosition(SIDE side){
+        MotionState motionState = motionStates.query();
+        if(motionState == null) return false;
+        Pose robotPose = motionState.pose();
+        if(side == SIDE.CLOSE){
+            if(robotPose.y() <= (WITHIN_SHOOTING_RANGE[0] * robotPose.x() + WITHIN_SHOOTING_RANGE[1]) && robotPose.y() <= (WITHIN_SHOOTING_RANGE[2] * robotPose.x() + WITHIN_SHOOTING_RANGE[3])){
+                return true;
+            }
+        } else{//SIDE.FAR
+            if(robotPose.y() >= (WITHIN_SHOOTING_RANGE[0] * robotPose.x() + WITHIN_SHOOTING_RANGE[1]) && robotPose.y() >= (WITHIN_SHOOTING_RANGE[2] * robotPose.x() + WITHIN_SHOOTING_RANGE[3])){
+                return true;
+            }
+        }
+        return false;
+    }
+    public enum VelocityStatus{
+        AtTarget,
+        Cancelled
+    }
+
+
+    public double getCurrentTargetVelocity(){
+        return currentTargetVelocity;
+    }
+    public void sendMotionState(MotionState motionState){
+        motionStates.send(motionState);
+    }
 }
