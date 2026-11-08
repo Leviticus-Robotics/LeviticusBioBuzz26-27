@@ -16,11 +16,23 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
+import org.firstinspires.ftc.teamcode.localization.LocalizationRuntime;
+import org.firstinspires.ftc.teamcode.localization.LocalizationConfig;
+import org.firstinspires.ftc.teamcode.NanoClock;
+import org.firstinspires.ftc.teamcode.localization.pedro.FusionMecanumDrivetrain;
+import org.firstinspires.ftc.teamcode.localization.pedro.FusionFollower;
 
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
 
 @Config
 public class Constants {
+    public static boolean useFusedLocalization = false;
+    public static double fusionMaximumLinearVelocity = 80;
+    public static double fusionMaximumAngularVelocity = 4;
+    public static LocalizationConfig fusionLocalizationConfig = LocalizationConfig.defaults();
+    public static int[] stationaryLocalizationTagIds = new int[0];
     public static MecanumConfig driveConfig = new MecanumConfig(
         c -> {
             c.frontLeftName.set(ConfigNames.FL);
@@ -82,6 +94,12 @@ public class Constants {
 
 
     public static Follower create(HardwareMap h) {
+        if (useFusedLocalization) {
+            LocalizationRuntime localization = new LocalizationRuntime(h, localizerConfig,
+                    Constants::isStationaryLocalizationTag, NanoClock.SYSTEM,
+                    fusionLocalizationConfig, fusionMaximumLinearVelocity, fusionMaximumAngularVelocity);
+            return new FusionFollower(localization, h, driveConfig, new Foresight(foresightConfig));
+        }
         return new Follower(
                 new OctoQuadLocalizer(h, localizerConfig),
                 new Mecanum(h, driveConfig),
@@ -89,9 +107,28 @@ public class Constants {
         );
     }
 
+    /** Only explicitly configured stationary custom/test tags may anchor field localization. */
+    public static boolean isStationaryLocalizationTag(AprilTagDetection detection) {
+        if (!(detection instanceof AprilTagSingleDetection)) return false;
+        AprilTagSingleDetection single = (AprilTagSingleDetection) detection;
+        if (single.metadata == null || single.robotPose == null) return false;
+        for (int id : stationaryLocalizationTagIds) if (id == single.id) return true;
+        return false;
+    }
+
 
 
     public static MercurialFollower createMercurial(HardwareMap h) {
+        if (useFusedLocalization) {
+            LocalizationRuntime localization = new LocalizationRuntime(h, localizerConfig,
+                    Constants::isStationaryLocalizationTag, NanoClock.SYSTEM,
+                    fusionLocalizationConfig, fusionMaximumLinearVelocity, fusionMaximumAngularVelocity);
+            return new MercurialFollower(
+                    localization.localizer(),
+                    new FusionMecanumDrivetrain(localization, h, driveConfig, true),
+                    new Foresight(foresightConfig)
+            );
+        }
         return new MercurialFollower(
                 new OctoQuadLocalizer(h, localizerConfig),
                 new Mecanum(h, driveConfig),
