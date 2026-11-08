@@ -18,7 +18,7 @@ public final class LocalizationDiagnostics extends OpMode {
 
     @Override public void init() {
         runtime = new LocalizationRuntime(hardwareMap, Constants.localizerConfig,
-                detection -> Constants.isStationaryLocalizationTag(detection), NanoClock.SYSTEM,
+                Constants::isStationaryLocalizationTag, NanoClock.SYSTEM,
                 Constants.fusionLocalizationConfig, commandVelocityScale, commandAngularScale);
     }
 

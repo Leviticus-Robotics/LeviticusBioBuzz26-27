@@ -168,9 +168,9 @@ public class RobotCombined {
 
     //want to turn this into command version
 
-    public Command update(ALLIANCE alliance, SIDE side, double velTolerance){
-        return new SequentialCommandGroup()
-    }
+//    public Command update(ALLIANCE alliance, SIDE side, double velTolerance){
+//        return new SequentialCommandGroup()
+//    }
     public void updatingShootingLogic(ALLIANCE alliance, SIDE side, double velTolerance){
         switch (automaticState){
             case INTAKING_BALLS:

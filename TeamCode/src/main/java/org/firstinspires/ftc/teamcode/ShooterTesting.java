@@ -49,9 +49,9 @@ public class ShooterTesting{
 
             EventManager.Handler<GamepadD.Delta> gamepad2Handler =
                     GamepadD.gamepad2Handler( event -> {
-                        if(event.leftBumperWasPressed()) shooter.fixed(fixedPower, false);
-                        else if(event.rightBumperWasPressed()) shooter.fixed(velocity, true);
-                        else if(event.rightTrigger() > 0.5) shooter.idle();
+                        if(event.leftBumperWasPressed()) shooter.fixedPower(fixedPower);
+                        else if(event.rightBumperWasPressed()) shooter.fixedVelocity(velocity);
+                        else if(event.rightTrigger() > 0.5) shooter.off();
                         if(shooter.fiber().status().alive()){
                             return EventHandled.ok();
                         } else{
@@ -74,7 +74,7 @@ public class ShooterTesting{
                             telemetry.addData("Slow Mode", driveSettings.slowMode);
                             telemetry.addData("Shooter Velocity", shooter.getVelocity());
                             telemetry.addData("Shooter Mode", shooter.mode());
-                            telemetry.addData("Shooter Corrected Velocity", shooter.shooter.getCorrectedVelocity());
+//                            telemetry.addData("Shooter Corrected Velocity", shooter.getCorrectedVelocity());
                             telemetry.update();
                         });
                         scope.run(waitFor.bind(seconds(0.1)));

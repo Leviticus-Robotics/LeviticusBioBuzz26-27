@@ -7,6 +7,6 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
  * #1) for reporting turret within range & shooter velocity good & at right position to shoot
  * #2) for reporting
  */
-public class GobildaLightOutputs extends SwitchedStateMachine {
-
-}
+//public class GobildaLightOutputs extends SwitchedStateMachine {
+//
+//}
