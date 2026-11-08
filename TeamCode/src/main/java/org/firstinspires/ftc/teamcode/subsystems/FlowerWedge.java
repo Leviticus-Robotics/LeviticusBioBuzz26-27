@@ -13,8 +13,6 @@ import dev.frozenmilk.dairy.mercurial.ftc.Context;
 import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 /** Flower Wedge
- *  FieldCentric, robotCentric driving modes
- *  Robot Holding / Path Following modes
  *  Uses: 1 Servo
  *  Positional Control Servo w/ boundaries set
  */

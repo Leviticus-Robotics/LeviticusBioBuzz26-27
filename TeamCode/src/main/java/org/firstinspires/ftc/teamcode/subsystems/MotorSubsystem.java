@@ -21,7 +21,7 @@ public abstract class MotorSubsystem extends SwitchedStateMachine{
 
     protected Telemetry.Item stateTelemetry;
     protected Mode offMode;
-    private double currentVoltage;
+    protected double currentVoltage;
     public static boolean VOLTAGE_COMPENSATION = false;
     public enum VelocityStatus{
         AtTarget
@@ -29,11 +29,9 @@ public abstract class MotorSubsystem extends SwitchedStateMachine{
 
     protected Mode fixedVelocityMode(double targetVelocity, double tolerance, Channel<VelocityStatus> resultChannel){
         boolean[] notified = new boolean[1];
-        return entranceMode(from -> {
+        return mode(self -> {
                     stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
                     motor.setRunMode(MotorEx.RunMode.VelocityControl);
-                },
-                self -> {
                     motor.set(targetVelocity, currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
                     if (resultChannel != null && notified[0] == false) {
                         if (isAtVelocity(targetVelocity, tolerance)) {

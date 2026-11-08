@@ -1,18 +1,13 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import androidx.annotation.NonNull;
-
 import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 
 import dev.frozenmilk.dairy.mercurial.ftc.Context;
 import dev.frozenmilk.dairy.mercurial.processes.Channel;
-import dev.frozenmilk.dairy.mercurial.processes.StateMachine;
-import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 /** Transfer
  * Extends from motor subsystem
@@ -25,6 +20,11 @@ public class Transfer extends MotorSubsystem {
     public static boolean usePIDCoefficients = false;
     public static boolean useFeedforwardCoefficients = false;
     public static boolean voltageCompesnation = false;
+
+    boolean breaker1Detection = false;
+    boolean breaker2Detection = false;
+    boolean prevTransferDetected = false;
+
 
     public Transfer(Context ctx){
         stateTelemetry = ctx.telemetry().addData("Transfer/State", "unknown");
@@ -44,10 +44,76 @@ public class Transfer extends MotorSubsystem {
         });
 
     }
+    public void updateBreaker1(boolean detected){
+        breaker1Detection = detected;
+    }
+
+    public void updateBreaker2(boolean detected){
+        breaker2Detection = detected;
+    }
+
+    public int numBallsDetected(){
+        int count = 0;
+        if(breaker1Detection) count++;
+        if(breaker2Detection) count++;
+        return count;
+    }
+
+    private boolean detectTwoBalls(){
+        return breaker1Detection && breaker2Detection;
+    }
+
+
+    //run target velocity on till detect two balls, then turn off transfer
+    public Mode runVelTillDetectionMode(double targetVelocity){
+        return mode(self -> {
+            stateTelemetry.setValue("Fixed Velocity till Detect (" + targetVelocity + ")");
+            motor.setRunMode(MotorEx.RunMode.VelocityControl);
+            motor.set(targetVelocity, currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
+            //keep it simple for now assuming breakers working
+            boolean currDetected = detectTwoBalls();
+
+            if(currDetected){
+                //turn transfer off if currently detect two balls
+                switchTo(offMode);
+            }
+            prevTransferDetected = currDetected;
+
+            return self;
+        });
+    }
+
+    public Mode runPowerTillDetectionMode(double power){
+        return mode(self -> {
+            stateTelemetry.setValue("Fixed Power till Detect (" + power + ")");
+            motor.setRunMode(MotorEx.RunMode.RawPower);
+            motor.set(power);
+            //keep it simple for now assuming breakers working
+            boolean currDetected = detectTwoBalls();
+
+            if(currDetected){
+                //turn transfer off if currently detect two balls
+                switchTo(offMode);
+            }
+            prevTransferDetected = currDetected;
+
+            return self;
+        });
+    }
+    public void runPowerTillDetection(double power){
+        switchTo(runPowerTillDetectionMode(power));
+    }
+    public void runVelocityTillDetection(double velocity){
+        switchTo(runVelTillDetectionMode(velocity));
+    }
 
     @Override
     public boolean useVoltageCompensation(){
         return voltageCompesnation;
     }
+
+
+
+
 
 }

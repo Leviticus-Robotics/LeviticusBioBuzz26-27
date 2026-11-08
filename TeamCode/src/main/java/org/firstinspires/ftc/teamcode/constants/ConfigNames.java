@@ -31,4 +31,6 @@ public class ConfigNames {
     public static String breaker1 = "b1";
     public static String breaker2 = "b2";
 
+    public static String transferGate = "tG";
+
 }

@@ -31,9 +31,8 @@ public class IncrementalEncoder {
     public IncrementalEncoder(HardwareMap hwMap, String id, double countsPerRevolution, AngleUnit angleUnit) {
         this(hwMap.get(DcMotorEx.class, id), countsPerRevolution, angleUnit);
         encoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        encoder.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        encoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     }
+
 
     /**
      * The constructor for incremental encoders
@@ -206,6 +205,11 @@ public class IncrementalEncoder {
         return angleUnit;
     }
 
+    //different from resetting offset, directly resets motor count to zero
+    public void resetEncoder(){
+        encoder.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        encoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    }
     public void resetOffset() {
         this.offset = 0;
     }

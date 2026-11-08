@@ -52,21 +52,30 @@ public class Turret extends SwitchedStateMachine {
     private Angle currentTurretAngle  = new Angle();
     //obtained through encoder
     Mode off;
+    Mode startMode;
     protected Telemetry.Item stateTelemetry;
 
     //check if need to pass in start position from encoder to set to default position because can reset to absolute position
-    public Turret(Context ctx){
+    //passing in true to reset zero moves turret back to center position
+    public Turret(Context ctx, boolean resetCenter){
         stateTelemetry = ctx.telemetry().addData("Turret/State", "unknown");
         servoLeft = new ServoEx(ctx.hardwareMap(), ConfigNames.turretServo1);
         servoRight = new ServoEx(ctx.hardwareMap(), ConfigNames.turretServo2);
 
         servoGroup = new ServoExGroup(servoLeft, servoRight);
 
+
         off = mode(self -> {
             stateTelemetry.setValue("off");
             servoGroup.disable();
             return self;
         });
+        if(resetCenter){
+            startMode = setRawPositionMode(SERVO_CENTER_POSITION);
+        } else{
+            startMode = off;
+        }
+
     }
 
     public Channel<Angle> getTargetHeadingsChannel(){
@@ -145,7 +154,7 @@ public class Turret extends SwitchedStateMachine {
     @NonNull
     @Override
     protected Mode init() {
-        return off;
+        return startMode;
     }
 
     private Angle optimizeAngle(Angle targetAngle) {
@@ -172,6 +181,10 @@ public class Turret extends SwitchedStateMachine {
 
     public double convertAngleToServoRange(Angle angle){
         return angleRange.toRange(angle.toRadians(), servoRange);
+    }
+
+    public void updateCurrentTurretAngle(Angle angle){
+        this.currentTurretAngle = angle;
     }
 
 
