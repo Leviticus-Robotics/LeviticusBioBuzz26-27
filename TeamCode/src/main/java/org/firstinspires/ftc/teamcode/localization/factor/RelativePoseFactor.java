@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.localization.factor;
 import org.ejml.simple.SimpleMatrix;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
 import org.firstinspires.ftc.teamcode.fusion.factor.BetweenFactor;
+import org.firstinspires.ftc.teamcode.fusion.factor.LinearizedFactor;
 import org.firstinspires.ftc.teamcode.fusion.factor.StateValues;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
 import org.firstinspires.ftc.teamcode.localization.core.RobotState;
@@ -54,7 +55,11 @@ public final class RelativePoseFactor implements BetweenFactor {
         return row == 2 ? Pose2.angularResidual(high, low) : high - low;
     }
 
-    /** Analytic Jacobian candidate; kept separate until validated and selected for production. */
+    @Override public LinearizedFactor linearize(StateValues values) {
+        return new LinearizedFactor(timestamps(), residual(values), covariance(values),
+                analyticJacobians(values));
+    }
+
     SimpleMatrix[] analyticJacobians(StateValues values) {
         double[] fromState = values.state(fromTimestampNanos);
         double[] toState = values.state(timestampNanos);

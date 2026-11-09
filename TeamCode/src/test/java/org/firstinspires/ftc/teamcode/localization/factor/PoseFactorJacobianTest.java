@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Random;
 import org.ejml.simple.SimpleMatrix;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
+import org.firstinspires.ftc.teamcode.fusion.factor.Factor;
 import org.firstinspires.ftc.teamcode.fusion.factor.LinearizedFactor;
 import org.firstinspires.ftc.teamcode.fusion.factor.StateValues;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
@@ -32,7 +33,7 @@ class PoseFactorJacobianTest {
                     MatrixOps.diagonal(.1, .2, .03));
             StateValues values = values(timestamp, state);
             maximumError = Math.max(maximumError,
-                    maximumDifference(factor.linearize(values).jacobians,
+                    maximumDifference(numericalLinearization(factor, values).jacobians,
                             factor.analyticJacobians(values)));
         }
         System.out.println("absolute pose maximum Jacobian error=" + maximumError);
@@ -58,7 +59,7 @@ class PoseFactorJacobianTest {
                     "relative", fromTimestamp, toTimestamp, measurement,
                     MatrixOps.diagonal(.1, .2, .03));
             StateValues values = values(fromTimestamp, from, toTimestamp, to);
-            LinearizedFactor numerical = factor.linearize(values);
+            LinearizedFactor numerical = numericalLinearization(factor, values);
             maximumError = Math.max(maximumError,
                     maximumDifference(numerical.jacobians, factor.analyticJacobians(values)));
         }
@@ -94,6 +95,21 @@ class PoseFactorJacobianTest {
             }
         }
         return maximum;
+    }
+
+    private static LinearizedFactor numericalLinearization(Factor factor, StateValues values) {
+        Factor numericalReference = new Factor() {
+            @Override public String source() { return factor.source(); }
+            @Override public long[] timestamps() { return factor.timestamps(); }
+            @Override public double[] residual(StateValues states) { return factor.residual(states); }
+            @Override public SimpleMatrix covariance(StateValues states) {
+                return factor.covariance(states);
+            }
+            @Override public double residualDifference(int row, double high, double low) {
+                return factor.residualDifference(row, high, low);
+            }
+        };
+        return numericalReference.linearize(values);
     }
 
     private static StateValues values(long timestamp, double[] state) {
