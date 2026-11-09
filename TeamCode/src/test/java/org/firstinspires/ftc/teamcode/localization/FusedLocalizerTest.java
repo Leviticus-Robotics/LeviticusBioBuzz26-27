@@ -9,13 +9,17 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Collections;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
 import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;
+import org.firstinspires.ftc.teamcode.fusion.factor.Factor;
 import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
 import org.firstinspires.ftc.teamcode.localization.core.RobotState;
 import org.firstinspires.ftc.teamcode.localization.engine.PoseVelocityProcessModel;
+import org.firstinspires.ftc.teamcode.localization.factor.AbsolutePoseFactor;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusedLocalizer;
+import org.firstinspires.ftc.teamcode.localization.sensor.AutomaticFusionSource;
 import org.junit.jupiter.api.Test;
 
 class FusedLocalizerTest {
@@ -25,14 +29,14 @@ class FusedLocalizerTest {
                         MatrixOps.diagonal(1, 1, 1, 1, 1, 1)).gaussian(), 0,
                 new PoseVelocityProcessModel(1, 1, 1, 1, new double[] {.1, .1, .1, .1, .1, .1}),
                 ControlInput.ZERO,
-                10_000_000_000L, 100);
+                10_000_000_000L);
     }
 
-    @Test void adaptsPoseVelocityUpdateResetAndDebugWithoutPollingSensors() {
+    @Test void adaptsPoseVelocityUpdateResetAndDebugWithInjectedSources() {
         AtomicLong time = new AtomicLong(0);
-        AtomicInteger sourceResets = new AtomicInteger();
+        FakeSource source = new FakeSource();
         FusedLocalizer localizer = new FusedLocalizer(engine(), time::get,
-                MatrixOps.diagonal(1, 1, 1, 1, 1, 1), sourceResets::incrementAndGet);
+                MatrixOps.diagonal(1, 1, 1, 1, 1, 1), Collections.singletonList(source));
         assertEquals(1, localizer.velocity().vx, 1e-12);
         localizer.setPose(new Pose(4, 5, .2));
         assertEquals(4, localizer.pose().x(), 1e-12);
@@ -42,7 +46,59 @@ class FusedLocalizerTest {
         assertTrue(localizer.debug().containsKey("covarianceDiagonal"));
         localizer.reset();
         assertEquals(0, localizer.pose().x(), 1e-12);
-        assertEquals(2, sourceResets.get());
+        assertEquals(2, source.resets.get());
+        assertEquals(1, source.polls.get());
+    }
+
+    @Test void updateAppliesAutomaticFactorBeforePublishingCurrentState() {
+        AtomicLong time = new AtomicLong(1_000_000_000L);
+        FakeSource source = new FakeSource();
+        source.next = new AbsolutePoseFactor("automatic", time.get(),
+                new Pose2(5, 0, 0), MatrixOps.diagonal(.001, .001, .001));
+        FusedLocalizer localizer = new FusedLocalizer(engine(), time::get,
+                MatrixOps.diagonal(1, 1, 1, 1, 1, 1), Collections.singletonList(source));
+
+        localizer.update();
+
+        assertEquals(1, source.polls.get());
+        assertTrue(localizer.pose().x() > 4.9);
+        assertEquals(time.get(), localizer.engine().timestampNanos());
+    }
+
+    @Test void externalFactorImmediatelyChangesExposedState() {
+        FusedLocalizer localizer = new FusedLocalizer(
+                engine(), () -> 0, MatrixOps.diagonal(1, 1, 1, 1, 1, 1));
+
+        localizer.applyFactor(new AbsolutePoseFactor("camera", 0,
+                new Pose2(6, 2, .3), MatrixOps.diagonal(.001, .001, .001)));
+
+        assertTrue(localizer.pose().x() > 5.9);
+        assertTrue(localizer.pose().y() > 1.9);
+    }
+
+    @Test void processOnlyPredictionDoesNotPollAutomaticSources() {
+        AtomicLong time = new AtomicLong(1_000_000_000L);
+        FakeSource source = new FakeSource();
+        FusedLocalizer localizer = new FusedLocalizer(engine(), time::get,
+                MatrixOps.diagonal(1, 1, 1, 1, 1, 1), Collections.singletonList(source));
+
+        localizer.predictToNow();
+
+        assertEquals(0, source.polls.get());
+        assertEquals(time.get(), localizer.engine().timestampNanos());
+    }
+
+    @Test void updatePredictsToTimeReadAfterSourcesArePolled() {
+        AtomicLong time = new AtomicLong(1_000_000_000L);
+        FakeSource source = new FakeSource();
+        source.onPoll = () -> time.set(2_000_000_000L);
+        FusedLocalizer localizer = new FusedLocalizer(
+                engine(), time::get, MatrixOps.diagonal(1, 1, 1, 1, 1, 1),
+                Collections.singletonList(source));
+
+        localizer.update();
+
+        assertEquals(2_000_000_000L, localizer.engine().timestampNanos());
     }
 
     @Test void coreLocalizationTypesDoNotImportPedroOrSensorSdks() throws IOException {
@@ -54,9 +110,7 @@ class FusedLocalizerTest {
                     .filter(path -> !path.toString().contains("/sensor/"))
                     .filter(path -> !path.toString().contains("/pedro/"))
                     .filter(path -> !path.getFileName().toString().equals("FusedLocalizer.java"))
-                    .filter(path -> !path.getFileName().toString().equals("FusionFollower.java"))
                     .filter(path -> !path.getFileName().toString().equals("FusionMecanumDrivetrain.java"))
-                    .filter(path -> !path.getFileName().toString().equals("LocalizationRuntime.java"))
                     .forEach(path -> {
                         try {
                             String source = new String(Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
@@ -68,5 +122,22 @@ class FusedLocalizerTest {
                         }
                     });
         }
+    }
+
+    private static final class FakeSource implements AutomaticFusionSource {
+        final AtomicInteger polls = new AtomicInteger();
+        final AtomicInteger resets = new AtomicInteger();
+        Factor next;
+        Runnable onPoll = () -> { };
+
+        @Override public Factor poll() {
+            polls.incrementAndGet();
+            onPoll.run();
+            Factor result = next;
+            next = null;
+            return result;
+        }
+
+        @Override public void reset() { resets.incrementAndGet(); }
     }
 }

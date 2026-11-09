@@ -4,9 +4,7 @@ import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.express
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.noop;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.seconds;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitFor;
-import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitUntil;
 
-import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.math.Pose;
 
@@ -28,11 +26,9 @@ public class FullSystemsTeleOp {
         return MercurialFTC.teleop(ctx -> {
             RobotCombined r = new RobotCombined(ctx);
             r.localizer.setPose(startPose);
-            FtcDashboard dashboard = FtcDashboard.getInstance();
 
             //spawns a spawnable to reset turret encoder position from absolute & set turret to center
-            Spawnable<?> program = expression((scope, self) -> {
-                scope.run(waitUntil(ctx::inInit));
+            Spawnable<?> turretInitialization = expression((scope, self) -> {
                 scope.run(waitFor.bind(seconds(2)));//waits for 2 seconds
                 scope.run(r.turretEncoder.resetEncoderSync());
                 scope.run(r.turretEncoder.resetFromAbsoluteSync());
@@ -42,18 +38,16 @@ public class FullSystemsTeleOp {
 
             class DriveSettings {
                 boolean fieldCentric = false;
-                boolean slowMode = false;
-                boolean prevFieldCentric = false;
             }
             DriveSettings driveSettings = new DriveSettings();
 
 
             //this handles the drive inputs
             EventManager.Handler<GamepadD.Delta> drivetrainHandler =
-                    GamepadD.gamepad2Handler(
+                    GamepadD.gamepad1Handler(
                             EventManager.forwardTo(r.drivetrain, event -> {
-                                        //if current drive settings is different from previous one
-                                        if (driveSettings.prevFieldCentric != driveSettings.fieldCentric) {
+                                        if (event.leftBumperWasPressed()) {
+                                            driveSettings.fieldCentric = !driveSettings.fieldCentric;
                                             if (driveSettings.fieldCentric) {
                                                 r.drivetrain.fieldCentric();
                                             } else {
@@ -61,19 +55,21 @@ public class FullSystemsTeleOp {
                                             }
                                         }
 
-                                        double multiplier = driveSettings.slowMode ? 0.4 : 1;
+                                        double multiplier = event.rightBumper() ? 0.4 : 1;
                                         r.drivetrain.sendDrivePowers(
+                                                -event.leftStickY() * multiplier,
                                                 event.leftStickX() * multiplier,
-                                                event.leftStickY() * multiplier,
-                                                event.rightStickY() * multiplier
+                                                event.rightStickX() * multiplier
                                         );
                                     }
                             ));
 
-
+            turretInitialization.spawn();
+            ctx.waitForStart();
+            r.drivetrain.robotCentric();
             ctx.gamepadD().addHandler(drivetrainHandler);
             ctx.dropToScheduler();
             return null;
         });
-    };
+    }
 }

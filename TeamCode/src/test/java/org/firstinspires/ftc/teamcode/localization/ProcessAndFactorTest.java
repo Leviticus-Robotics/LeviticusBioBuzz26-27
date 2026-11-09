@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
 import org.firstinspires.ftc.teamcode.fusion.core.Gaussian;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
+import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
 import org.firstinspires.ftc.teamcode.localization.core.RobotState;
 import org.firstinspires.ftc.teamcode.localization.engine.PoseVelocityProcessModel;
@@ -49,8 +50,10 @@ class ProcessAndFactorTest {
         covariance.set(RobotState.X, RobotState.VX, .5);
         covariance.set(RobotState.VX, RobotState.X, .5);
         Gaussian prior = RobotState.create(Pose2.zero(), 0, 0, 0, covariance).gaussian();
-        Gaussian posterior = new AbsolutePoseFactor("test", 0, new Pose2(1, 0, 0),
-                MatrixOps.diagonal(.1, .1, .1)).apply(prior);
+        FusionEngine<ControlInput> engine = engine(prior);
+        engine.applyFactor(new AbsolutePoseFactor("test", 0, new Pose2(1, 0, 0),
+                MatrixOps.diagonal(.1, .1, .1)));
+        Gaussian posterior = engine.state();
         assertTrue(posterior.mean(RobotState.X) > 0);
         assertTrue(posterior.mean(RobotState.VX) > 0);
         assertEquals(0, posterior.mean(RobotState.VY), 1e-12);
@@ -58,10 +61,17 @@ class ProcessAndFactorTest {
 
     @Test void GaussianFusionDoesNotApplyAnImplicitOutlierGate() {
         Gaussian prior = zeroState();
-        Gaussian posterior = new AbsolutePoseFactor("test", 0, new Pose2(100, 0, 0),
-                MatrixOps.diagonal(.01, .01, .01)).apply(prior);
+        FusionEngine<ControlInput> engine = engine(prior);
+        engine.applyFactor(new AbsolutePoseFactor("test", 0, new Pose2(100, 0, 0),
+                MatrixOps.diagonal(.01, .01, .01)));
+        Gaussian posterior = engine.state();
         assertTrue(posterior.mean(RobotState.X) > 90);
         assertTrue(posterior.covariance().get(RobotState.X, RobotState.X)
                 < prior.covariance().get(RobotState.X, RobotState.X));
+    }
+
+    private static FusionEngine<ControlInput> engine(Gaussian initial) {
+        return new FusionEngine<>(initial, 0, model(), ControlInput.ZERO,
+                10_000_000_000L);
     }
 }

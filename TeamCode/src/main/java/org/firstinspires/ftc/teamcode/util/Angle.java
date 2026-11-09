@@ -4,14 +4,15 @@ import java.lang.Math;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
 public class Angle {
-    private double value;
-    private AngleUnit unit;
+    private final double value;
+    private final AngleUnit unit;
 
     public Angle() {
         this(0, AngleUnit.RADIANS);
     }
 
     public Angle(double value, AngleUnit unit) {
+        if (unit == null) throw new IllegalArgumentException("angle unit is null");
         this.value = value;
         this.unit = unit;
     }
@@ -48,9 +49,7 @@ public class Angle {
     }
 
     public Angle changeUnit(AngleUnit angleUnit) {
-        value = this.to(angleUnit);
-        unit = angleUnit;
-        return this;
+        return new Angle(this.to(angleUnit), angleUnit);
     }
 
     public Angle wrap() {

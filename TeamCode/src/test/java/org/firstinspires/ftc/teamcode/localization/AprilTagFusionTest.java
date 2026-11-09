@@ -35,24 +35,24 @@ class AprilTagFusionTest {
 
     @Test void duplicateIdenticalTagsDoNotIncreaseInformation() {
         AprilTagPoseObservation observation = observation(new Pose2(3, 4, Math.PI - .01));
-        AbsolutePoseFactor one = processor(1).combineFrame(1, Arrays.asList(observation),
-                new Pose2(3, 4, -Math.PI + .01));
-        AbsolutePoseFactor two = processor(1).combineFrame(1, Arrays.asList(observation, observation),
-                new Pose2(3, 4, -Math.PI + .01));
-        assertTrue(one.covariance().isIdentical(two.covariance(), 1e-12));
+        AbsolutePoseFactor one = processor(1).combineFrame(1, Arrays.asList(observation));
+        AbsolutePoseFactor two = processor(1).combineFrame(1, Arrays.asList(observation, observation));
+        assertTrue(one.measurementCovariance().isIdentical(two.measurementCovariance(), 1e-12));
         assertEquals(one.pose().heading(), two.pose().heading(), 1e-12);
     }
 
     @Test void disagreementInflatesCovarianceAndOutliersCanBeRejected() {
         AprilTagPoseObservation a = observation(new Pose2(0, 0, 0));
         AprilTagPoseObservation b = observation(new Pose2(1, 0, 0));
-        AbsolutePoseFactor agreeing = processor(2).combineFrame(1, Arrays.asList(a, a), Pose2.zero());
-        AbsolutePoseFactor disagreeing = processor(2).combineFrame(1, Arrays.asList(a, b), Pose2.zero());
-        assertTrue(disagreeing.covariance().get(0, 0) > agreeing.covariance().get(0, 0));
+        AbsolutePoseFactor agreeing = processor(2).combineFrame(1, Arrays.asList(a, a));
+        AbsolutePoseFactor disagreeing = processor(2).combineFrame(1, Arrays.asList(a, b));
+        assertTrue(disagreeing.measurementCovariance().get(0, 0)
+                > agreeing.measurementCovariance().get(0, 0));
         AprilTagFrameProcessor tight = new AprilTagFrameProcessor(detection -> true,
                 MatrixOps.diagonal(.1, .1, .1), MatrixOps.diagonal(.01, .01, .01),
                 9, 1, Pose2.zero());
-        AbsolutePoseFactor gated = tight.combineFrame(2, Arrays.asList(a, observation(new Pose2(100, 0, 0))), Pose2.zero());
+        AbsolutePoseFactor gated = tight.combineFrame(
+                2, Arrays.asList(a, observation(new Pose2(100, 0, 0))));
         assertEquals(0, gated.pose().x(), 1e-12);
     }
 
@@ -63,11 +63,10 @@ class AprilTagFusionTest {
                 new PoseVelocityProcessModel(1, 1, 1, 1,
                         new double[] {.01, .01, .01, .01, .01, .01}),
                 ControlInput.ZERO,
-                10_000_000_000L, 100);
+                10_000_000_000L);
         engine.predictTo(2_000_000_000L);
         AbsolutePoseFactor factor = processor(1).combineFrame(1_000_000_000L,
-                Arrays.asList(observation(new Pose2(2, 0, Math.PI - .01))),
-                new Pose2(0, 0, -Math.PI + .01));
+                Arrays.asList(observation(new Pose2(2, 0, Math.PI - .01))));
         assertTrue(engine.applyFactor(factor).isAccepted());
         assertTrue(Math.abs(new RobotState(engine.state()).pose().heading()) > 2);
     }
@@ -75,9 +74,18 @@ class AprilTagFusionTest {
     @Test void aCameraFrameIsSubmittedOnlyOnce() {
         AprilTagFrameProcessor processor = processor(1);
         java.util.List<AprilTagPoseObservation> observations = Arrays.asList(observation(Pose2.zero()));
-        assertNotNull(processor.fromFrame(100, observations, Pose2.zero()));
-        assertNull(processor.fromFrame(100, observations, Pose2.zero()));
-        assertNull(processor.fromFrame(99, observations, Pose2.zero()));
-        assertNotNull(processor.fromFrame(101, observations, Pose2.zero()));
+        assertNotNull(processor.fromFrame(100, observations));
+        assertNull(processor.fromFrame(100, observations));
+        assertNull(processor.fromFrame(99, observations));
+        assertNotNull(processor.fromFrame(101, observations));
+    }
+
+    @Test void headingsAcrossWrapAreCombinedFromFrameConsensusWithoutAPriorPose() {
+        AbsolutePoseFactor factor = processor(1).combineFrame(1, Arrays.asList(
+                observation(new Pose2(0, 0, Math.toRadians(179))),
+                observation(new Pose2(0, 0, Math.toRadians(-179)))));
+
+        assertNotNull(factor);
+        assertTrue(Math.abs(factor.pose().heading()) > Math.toRadians(170));
     }
 }

@@ -61,6 +61,8 @@ public class Turret extends SwitchedStateMachine {
         stateTelemetry = ctx.telemetry().addData("Turret/State", "unknown");
         servoLeft = new ServoEx(ctx.hardwareMap(), ConfigNames.turretServo1);
         servoRight = new ServoEx(ctx.hardwareMap(), ConfigNames.turretServo2);
+        servoLeft.setInverted(leftInverted);
+        servoRight.setInverted(rightInverted);
 
         servoGroup = new ServoExGroup(servoLeft, servoRight);
 
@@ -158,7 +160,7 @@ public class Turret extends SwitchedStateMachine {
     }
 
     private Angle optimizeAngle(Angle targetAngle) {
-        Angle bestCandidate = new Angle();
+        Angle bestCandidate = null;
         Angle targetAngleWrapped = targetAngle.wrap();
         Angle minGap = Angle.fromRadians(Double.MAX_VALUE);
         Angle[] candidates = {
@@ -176,7 +178,12 @@ public class Turret extends SwitchedStateMachine {
             }
         }
 
-        return bestCandidate;
+        if (bestCandidate != null) return bestCandidate;
+
+        Angle low = Angle.fromRadians(angleRange.low());
+        Angle high = Angle.fromRadians(angleRange.high());
+        return currentTurretAngle.distance(low).le(currentTurretAngle.distance(high))
+                ? low : high;
     }
 
     public double convertAngleToServoRange(Angle angle){

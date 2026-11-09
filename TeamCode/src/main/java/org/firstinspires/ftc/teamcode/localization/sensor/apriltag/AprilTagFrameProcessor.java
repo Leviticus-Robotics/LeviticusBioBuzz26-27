@@ -45,7 +45,7 @@ public final class AprilTagFrameProcessor {
         this.fieldConventionTransform = fieldConventionTransform;
     }
 
-    public AbsolutePoseFactor fromDetections(List<AprilTagDetection> detections, Pose2 predictedReference) {
+    public AbsolutePoseFactor fromDetections(List<AprilTagDetection> detections) {
         if (detections == null || detections.isEmpty()) return null;
         AprilTagDetection first = null;
         for (AprilTagDetection detection : detections) {
@@ -64,20 +64,18 @@ public final class AprilTagFrameProcessor {
                     pose.getOrientation().getYaw(AngleUnit.RADIANS)));
             observations.add(new AprilTagPoseObservation(converted, perDetectionCovariance));
         }
-        return fromFrame(frameTimestamp, observations, predictedReference);
+        return fromFrame(frameTimestamp, observations);
     }
 
     public AbsolutePoseFactor fromFrame(long frameTimestampNanos,
-                                        List<AprilTagPoseObservation> observations,
-                                        Pose2 predictedReference) {
+                                        List<AprilTagPoseObservation> observations) {
         if (frameTimestampNanos <= lastFrameTimestampNanos) return null;
         lastFrameTimestampNanos = frameTimestampNanos;
-        return combineFrame(frameTimestampNanos, observations, predictedReference);
+        return combineFrame(frameTimestampNanos, observations);
     }
 
     public AbsolutePoseFactor combineFrame(long frameTimestampNanos,
-                                           List<AprilTagPoseObservation> observations,
-                                           Pose2 predictedReference) {
+                                           List<AprilTagPoseObservation> observations) {
         if (observations == null || observations.isEmpty()) return null;
         Pose2 consensusReference = selectConsensusReference(observations);
         List<double[]> acceptedMeans = new ArrayList<>();
@@ -85,8 +83,8 @@ public final class AprilTagFrameProcessor {
         for (AprilTagPoseObservation observation : observations) {
             Pose2 pose = observation.robotFieldPose();
             SimpleMatrix observationCovariance = observation.covariance();
-            double unwrappedHeading = predictedReference.heading()
-                    + Pose2.angularResidual(pose.heading(), predictedReference.heading());
+            double unwrappedHeading = consensusReference.heading()
+                    + Pose2.angularResidual(pose.heading(), consensusReference.heading());
             double[] mean = new double[] {pose.x(), pose.y(), unwrappedHeading};
             SimpleMatrix residual = MatrixOps.column(new double[] {
                     pose.x() - consensusReference.x(), pose.y() - consensusReference.y(),

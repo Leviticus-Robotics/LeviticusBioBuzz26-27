@@ -88,14 +88,6 @@ public class ShooterTesting{
             ctx.gamepadD().addHandler(gamepad2Handler);
             ctx.dropToScheduler();
             return null;
-        }
-
-
-        );
-
-
-
+        });
     }
-
-
 }

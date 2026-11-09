@@ -35,7 +35,7 @@ import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.express
  */
 public class Drivetrain extends SwitchedStateMachine {
     //check Mercuiral GitHub, most of the code the same, added timeouts for follow paths
-    private MercurialFollower follower;
+    private final MercurialFollower follower;
     private Channel<MotionState> motionStates = linkedSingleChannel();//handle localization input
     private Channel<DrivePowers> drivePowers = linkedSingleChannel();//handle drive inputs
     //linked single channel so that if the state machine stops, the channel closes automatically
@@ -46,7 +46,12 @@ public class Drivetrain extends SwitchedStateMachine {
     Mode fieldCentric;
     Mode robotCentric;
     public Drivetrain(Context ctx){
-        follower = Constants.createFollower(ctx.hardwareMap());
+        this(ctx, Constants.createFollower(ctx.hardwareMap()));
+    }
+
+    public Drivetrain(Context ctx, MercurialFollower follower){
+        if (follower == null) throw new IllegalArgumentException("follower is null");
+        this.follower = follower;
         stateTelemetry = ctx.telemetry().addData("Drivetrain/State", "unknown");//can't use normal telemetry
         //enter idle mode when start
         idle = entranceMode(from -> {

@@ -7,12 +7,11 @@ import com.pedropathing.revhub.drivetrains.MecanumConfig;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import java.util.Map;
-import org.firstinspires.ftc.teamcode.localization.LocalizationRuntime;
 import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
 
 /** Mecanum drivetrain that records the motor powers Pedro actually applied. */
 public final class FusionMecanumDrivetrain implements Drivetrain {
-    private final LocalizationRuntime runtime;
+    private final FusedLocalizer localizer;
     private final Mecanum drivetrain;
     private final DcMotorEx frontLeftMotor;
     private final DcMotorEx frontRightMotor;
@@ -20,15 +19,16 @@ public final class FusionMecanumDrivetrain implements Drivetrain {
     private final DcMotorEx backRightMotor;
     private final boolean pollSensorBeforeDrive;
 
-    public FusionMecanumDrivetrain(LocalizationRuntime runtime,
+    public FusionMecanumDrivetrain(FusedLocalizer localizer,
                                    HardwareMap hardwareMap, MecanumConfig config) {
-        this(runtime, hardwareMap, config, false);
+        this(localizer, hardwareMap, config, false);
     }
 
-    public FusionMecanumDrivetrain(LocalizationRuntime runtime,
+    public FusionMecanumDrivetrain(FusedLocalizer localizer,
                                    HardwareMap hardwareMap, MecanumConfig config,
                                    boolean pollSensorBeforeDrive) {
-        this.runtime = runtime;
+        if (localizer == null) throw new IllegalArgumentException("localizer is null");
+        this.localizer = localizer;
         this.drivetrain = new Mecanum(hardwareMap, config);
         this.frontLeftMotor = hardwareMap.get(DcMotorEx.class, config.frontLeftName.get());
         this.frontRightMotor = hardwareMap.get(DcMotorEx.class, config.frontRightName.get());
@@ -38,7 +38,7 @@ public final class FusionMecanumDrivetrain implements Drivetrain {
     }
 
     @Override public void drive(DrivePowers powers, boolean manual) {
-        if (pollSensorBeforeDrive) runtime.updateOctoQuad();
+        if (pollSensorBeforeDrive) localizer.update();
         drivetrain.drive(powers, manual);
         recordAppliedMotorPowers();
     }
@@ -48,13 +48,13 @@ public final class FusionMecanumDrivetrain implements Drivetrain {
     }
 
     @Override public void stop() {
-        if (pollSensorBeforeDrive) runtime.updateOctoQuad();
+        if (pollSensorBeforeDrive) localizer.update();
         drivetrain.stop();
         recordAppliedMotorPowers();
     }
 
     @Override public void stop(boolean brake) {
-        if (pollSensorBeforeDrive) runtime.updateOctoQuad();
+        if (pollSensorBeforeDrive) localizer.update();
         drivetrain.stop(brake);
         recordAppliedMotorPowers();
     }
@@ -69,7 +69,7 @@ public final class FusionMecanumDrivetrain implements Drivetrain {
         ControlInput input = fromWheelPowers(
                 frontLeftMotor.getPower(), frontRightMotor.getPower(),
                 backLeftMotor.getPower(), backRightMotor.getPower());
-        runtime.setDriveInput(input.forwardPower, input.strafePower, input.turnPower);
+        localizer.setDriveInput(input.forwardPower, input.strafePower, input.turnPower);
     }
 
     static ControlInput fromWheelPowers(double frontLeft, double frontRight,

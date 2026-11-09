@@ -1,13 +1,13 @@
 package org.firstinspires.ftc.teamcode.localization.factor;
 
 import org.ejml.simple.SimpleMatrix;
-import org.firstinspires.ftc.teamcode.fusion.core.Gaussian;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
-import org.firstinspires.ftc.teamcode.fusion.factor.RelativeFactor;
+import org.firstinspires.ftc.teamcode.fusion.factor.BetweenFactor;
+import org.firstinspires.ftc.teamcode.fusion.factor.StateValues;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
 import org.firstinspires.ftc.teamcode.localization.core.RobotState;
 
-public final class RelativePoseFactor implements RelativeFactor {
+public final class RelativePoseFactor implements BetweenFactor {
     private final String source;
     private final long fromTimestampNanos;
     private final long timestampNanos;
@@ -30,62 +30,76 @@ public final class RelativePoseFactor implements RelativeFactor {
 
     @Override public String source() { return source; }
     @Override public long fromTimestampNanos() { return fromTimestampNanos; }
+    @Override public long toTimestampNanos() { return timestampNanos; }
     @Override public long timestampNanos() { return timestampNanos; }
     public Pose2 delta() { return delta; }
-    public SimpleMatrix covariance() { return covariance.copy(); }
+    @Override public SimpleMatrix covariance(StateValues values) { return covariance.copy(); }
 
-    @Override public Gaussian apply(Gaussian stateAtFromTimestamp) {
-        if (stateAtFromTimestamp.dimension() != RobotState.DIMENSION) {
-            throw new IllegalArgumentException("transition state must have 6 dimensions");
+    @Override public double[] residual(StateValues values) {
+        double[] fromState = values.state(fromTimestampNanos);
+        double[] toState = values.state(timestampNanos);
+        if (fromState.length != RobotState.DIMENSION || toState.length != RobotState.DIMENSION) {
+            throw new IllegalArgumentException("relative-pose states must have 6 dimensions");
         }
-        double elapsedSeconds = (timestampNanos - fromTimestampNanos) * 1e-9;
-        double[] state = stateAtFromTimestamp.mean();
-        double[] deltaVector = delta.toArray();
-        double[] transitioned = transition(state, deltaVector, elapsedSeconds);
-        SimpleMatrix stateJacobian = numericalJacobian(state, deltaVector, elapsedSeconds, true);
-        SimpleMatrix deltaJacobian = numericalJacobian(state, deltaVector, elapsedSeconds, false);
-        SimpleMatrix transitionedCovariance = stateJacobian.mult(stateAtFromTimestamp.covariance())
-                .mult(stateJacobian.transpose())
-                .plus(deltaJacobian.mult(covariance).mult(deltaJacobian.transpose()));
-        return new Gaussian(transitioned, MatrixOps.symmetrize(transitionedCovariance));
+        Pose2 from = new Pose2(fromState[RobotState.X], fromState[RobotState.Y],
+                fromState[RobotState.HEADING]);
+        Pose2 to = new Pose2(toState[RobotState.X], toState[RobotState.Y],
+                toState[RobotState.HEADING]);
+        Pose2 predictedDelta = from.localDeltaTo(to);
+        Pose2 error = delta.inverse().compose(predictedDelta);
+        return error.toArray();
     }
 
-    private static double[] transition(double[] state, double[] delta, double elapsedSeconds) {
-        Pose2 previous = new Pose2(state[RobotState.X], state[RobotState.Y], state[RobotState.HEADING]);
-        Pose2 next = previous.compose(new Pose2(delta[0], delta[1], delta[2]));
-        return new double[] {
-                next.x(), next.y(), next.heading(),
-                (next.x() - previous.x()) / elapsedSeconds,
-                (next.y() - previous.y()) / elapsedSeconds,
-                Pose2.angularResidual(next.heading(), previous.heading()) / elapsedSeconds
-        };
+    @Override public double residualDifference(int row, double high, double low) {
+        return row == 2 ? Pose2.angularResidual(high, low) : high - low;
     }
 
-    private static SimpleMatrix numericalJacobian(double[] state, double[] delta, double elapsedSeconds,
-                                                   boolean withRespectToState) {
-        int columns = withRespectToState ? RobotState.DIMENSION : 3;
-        SimpleMatrix jacobian = new SimpleMatrix(RobotState.DIMENSION, columns);
-        double epsilon = 1e-6;
-        for (int column = 0; column < columns; column++) {
-            double[] highState = state.clone();
-            double[] lowState = state.clone();
-            double[] highDelta = delta.clone();
-            double[] lowDelta = delta.clone();
-            if (withRespectToState) {
-                highState[column] += epsilon;
-                lowState[column] -= epsilon;
-            } else {
-                highDelta[column] += epsilon;
-                lowDelta[column] -= epsilon;
-            }
-            double[] high = transition(highState, highDelta, elapsedSeconds);
-            double[] low = transition(lowState, lowDelta, elapsedSeconds);
-            for (int row = 0; row < RobotState.DIMENSION; row++) {
-                double difference = row == RobotState.HEADING
-                        ? Pose2.angularResidual(high[row], low[row]) : high[row] - low[row];
-                jacobian.set(row, column, difference / (2 * epsilon));
-            }
+    /** Analytic Jacobian candidate; kept separate until validated and selected for production. */
+    SimpleMatrix[] analyticJacobians(StateValues values) {
+        double[] fromState = values.state(fromTimestampNanos);
+        double[] toState = values.state(timestampNanos);
+        if (fromState.length != RobotState.DIMENSION || toState.length != RobotState.DIMENSION) {
+            throw new IllegalArgumentException("relative-pose states must have 6 dimensions");
         }
-        return jacobian;
+
+        double fromHeading = fromState[RobotState.HEADING];
+        double cosFrom = Math.cos(fromHeading);
+        double sinFrom = Math.sin(fromHeading);
+        double globalDx = toState[RobotState.X] - fromState[RobotState.X];
+        double globalDy = toState[RobotState.Y] - fromState[RobotState.Y];
+        double predictedDx = cosFrom*globalDx + sinFrom*globalDy;
+        double predictedDy = -sinFrom*globalDx + cosFrom*globalDy;
+
+        double cosMeasured = Math.cos(delta.heading());
+        double sinMeasured = Math.sin(delta.heading());
+        SimpleMatrix rotateIntoError = new SimpleMatrix(new double[][] {
+                {cosMeasured, sinMeasured},
+                {-sinMeasured, cosMeasured}
+        });
+
+        SimpleMatrix fromTranslation = new SimpleMatrix(new double[][] {
+                {-cosFrom, -sinFrom, predictedDy},
+                { sinFrom, -cosFrom, -predictedDx}
+        });
+        SimpleMatrix toTranslation = new SimpleMatrix(new double[][] {
+                {cosFrom, sinFrom, 0},
+                {-sinFrom, cosFrom, 0}
+        });
+        fromTranslation = rotateIntoError.mult(fromTranslation);
+        toTranslation = rotateIntoError.mult(toTranslation);
+
+        SimpleMatrix fromJacobian = new SimpleMatrix(3, RobotState.DIMENSION);
+        SimpleMatrix toJacobian = new SimpleMatrix(3, RobotState.DIMENSION);
+        for (int row = 0; row < 2; row++) {
+            fromJacobian.set(row, RobotState.X, fromTranslation.get(row, 0));
+            fromJacobian.set(row, RobotState.Y, fromTranslation.get(row, 1));
+            fromJacobian.set(row, RobotState.HEADING, fromTranslation.get(row, 2));
+            toJacobian.set(row, RobotState.X, toTranslation.get(row, 0));
+            toJacobian.set(row, RobotState.Y, toTranslation.get(row, 1));
+        }
+        fromJacobian.set(2, RobotState.HEADING, -1);
+        toJacobian.set(2, RobotState.HEADING, 1);
+        return new SimpleMatrix[] {fromJacobian, toJacobian};
     }
+
 }

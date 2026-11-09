@@ -18,11 +18,21 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
-import org.firstinspires.ftc.teamcode.localization.LocalizationRuntime;
 import org.firstinspires.ftc.teamcode.localization.LocalizationConfig;
 import org.firstinspires.ftc.teamcode.NanoClock;
+import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;
+import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
+import org.firstinspires.ftc.teamcode.localization.core.Pose2;
+import org.firstinspires.ftc.teamcode.localization.core.RobotState;
+import org.firstinspires.ftc.teamcode.localization.engine.PoseVelocityProcessModel;
+import org.firstinspires.ftc.teamcode.localization.factor.AbsolutePoseFactor;
+import org.firstinspires.ftc.teamcode.localization.pedro.FusedLocalizer;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusionMecanumDrivetrain;
-import org.firstinspires.ftc.teamcode.localization.pedro.FusionFollower;
+import org.firstinspires.ftc.teamcode.localization.sensor.apriltag.AprilTagFrameProcessor;
+import org.firstinspires.ftc.teamcode.localization.sensor.octoquad.OctoQuadFactorFactory;
+import org.firstinspires.ftc.teamcode.localization.sensor.octoquad.OctoQuadFusionSource;
+
+import java.util.Collections;
 
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
@@ -51,7 +61,7 @@ public class Constants {
     public static
     double vy = 2.3; // 6
     public static OctoQuadConfig localizerConfig = new OctoQuadConfig(c -> {
-        c.name.set(ConfigNames.OCTOQUAD);
+        c.name.set(ConfigNames.octoquad);
         c.xPodPort.set(0);
         c.yPodPort.set(1);
         c.ticksPerUnit.set(505.316944406);
@@ -96,10 +106,11 @@ public class Constants {
 
     public static Follower create(HardwareMap h) {
         if (useFusedLocalization) {
-            LocalizationRuntime localization = new LocalizationRuntime(h, localizerConfig,
-                    Constants::isStationaryLocalizationTag, NanoClock.SYSTEM,
-                    fusionLocalizationConfig, fusionMaximumLinearVelocity, fusionMaximumAngularVelocity);
-            return new FusionFollower(localization, h, driveConfig, new Foresight(foresightConfig));
+            FusedLocalizationComponents fusion = createFusedLocalizationComponents(h);
+            return new Follower(
+                    fusion.localizer,
+                    new FusionMecanumDrivetrain(fusion.localizer, h, driveConfig),
+                    new Foresight(foresightConfig));
         }
         return new Follower(
                 new OctoQuadLocalizer(h, localizerConfig),
@@ -119,6 +130,108 @@ public class Constants {
         return new MercurialLocalizer(
                 new OctoQuadLocalizer(h, localizerConfig)
         );
+    }
+
+    /**
+     * Creates the Mercurial localization and drive components as one unit. When fusion is enabled,
+     * both components share the same fused localizer instead of constructing divergent estimates.
+     */
+    public static MercurialComponents createMercurialComponents(HardwareMap hardwareMap) {
+        Foresight algorithm = new Foresight(foresightConfig);
+        if (!useFusedLocalization) {
+            return new MercurialComponents(
+                    createLocalizer(hardwareMap),
+                    new MercurialFollower(new Mecanum(hardwareMap, driveConfig), algorithm),
+                    null
+            );
+        }
+
+        FusedLocalizationComponents fusion = createFusedLocalizationComponents(hardwareMap);
+        return new MercurialComponents(
+                new MercurialLocalizer(fusion.localizer),
+                new MercurialFollower(
+                        new FusionMecanumDrivetrain(fusion.localizer, hardwareMap, driveConfig),
+                        algorithm
+                ),
+                fusion
+        );
+    }
+
+    public static FusedLocalizationComponents createFusedLocalizationComponents(
+            HardwareMap hardwareMap) {
+        return createFusedLocalizationComponents(
+                hardwareMap, fusionMaximumLinearVelocity, fusionMaximumAngularVelocity);
+    }
+
+    public static FusedLocalizationComponents createFusedLocalizationComponents(
+            HardwareMap hardwareMap, double maximumLinearVelocity,
+            double maximumAngularVelocity) {
+        NanoClock clock = NanoClock.SYSTEM;
+        long now = clock.now();
+        RobotState initial = RobotState.create(Pose2.zero(), 0, 0, 0,
+                fusionLocalizationConfig.initialCovariance());
+        FusionEngine<ControlInput> engine = new FusionEngine<>(
+                initial.gaussian(), now,
+                new PoseVelocityProcessModel(
+                        8.0,
+                        maximumLinearVelocity,
+                        maximumLinearVelocity,
+                        maximumAngularVelocity,
+                        fusionLocalizationConfig.processNoisePerSecond()),
+                ControlInput.ZERO,
+                FusedLocalizer.DEFAULT_HISTORY_NANOS);
+        OctoQuadLocalizer rawOctoQuad = new OctoQuadLocalizer(hardwareMap, localizerConfig);
+        OctoQuadFusionSource octoQuad = new OctoQuadFusionSource(
+                rawOctoQuad,
+                new OctoQuadFactorFactory(fusionLocalizationConfig.octoQuadDeltaCovariance()),
+                clock);
+        FusedLocalizer localizer = new FusedLocalizer(
+                engine,
+                clock,
+                fusionLocalizationConfig.initialCovariance(),
+                Collections.singletonList(octoQuad));
+        AprilTagFrameProcessor aprilTagProcessor = new AprilTagFrameProcessor(
+                Constants::isStationaryLocalizationTag,
+                fusionLocalizationConfig.aprilTagCovariance(),
+                fusionLocalizationConfig.sharedCameraCovarianceFloor(),
+                fusionLocalizationConfig.aprilTagConsensusGateSquared(),
+                fusionLocalizationConfig.aprilTagDisagreementInflation(),
+                fusionLocalizationConfig.fieldConventionTransform());
+        return new FusedLocalizationComponents(localizer, octoQuad, aprilTagProcessor);
+    }
+
+    public static final class FusedLocalizationComponents {
+        public final FusedLocalizer localizer;
+        public final OctoQuadFusionSource octoQuad;
+        public final AprilTagFrameProcessor aprilTagProcessor;
+
+        private FusedLocalizationComponents(FusedLocalizer localizer,
+                                            OctoQuadFusionSource octoQuad,
+                                            AprilTagFrameProcessor aprilTagProcessor) {
+            this.localizer = localizer;
+            this.octoQuad = octoQuad;
+            this.aprilTagProcessor = aprilTagProcessor;
+        }
+
+        public void submitAprilTags(java.util.List<AprilTagDetection> detections) {
+            AbsolutePoseFactor factor = aprilTagProcessor.fromDetections(detections);
+            if (factor != null) localizer.applyFactor(factor);
+        }
+    }
+
+    public static final class MercurialComponents {
+        public final MercurialLocalizer localizer;
+        public final MercurialFollower follower;
+        /** Non-null only when {@link Constants#useFusedLocalization} is enabled. */
+        public final FusedLocalizationComponents fusion;
+
+        private MercurialComponents(MercurialLocalizer localizer,
+                                    MercurialFollower follower,
+                                    FusedLocalizationComponents fusion) {
+            this.localizer = localizer;
+            this.follower = follower;
+            this.fusion = fusion;
+        }
     }
 
     /** Only explicitly configured stationary custom/test tags may anchor field localization. */

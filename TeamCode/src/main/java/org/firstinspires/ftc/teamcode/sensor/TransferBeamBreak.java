@@ -24,13 +24,20 @@ public class TransferBeamBreak extends EventManager<TransferBeamBreak.BeamBreakE
     private Telemetry.Item breaker1Telemetry;
     private Telemetry.Item breaker2Telemetry;
 
-    public static class BeamBreakEvent{
-        public int sensorNum;
-        public boolean interrupted;
-        public BeamBreakEvent(int sensorInt, boolean interrupted){
-            this.sensorNum = sensorInt;
+    public static final class BeamBreakEvent{
+        private final int sensorNumber;
+        private final boolean interrupted;
+
+        public BeamBreakEvent(int sensorNumber, boolean interrupted){
+            if (sensorNumber != 1 && sensorNumber != 2) {
+                throw new IllegalArgumentException("sensor number must be 1 or 2");
+            }
+            this.sensorNumber = sensorNumber;
             this.interrupted = interrupted;
         }
+
+        public int sensorNumber() { return sensorNumber; }
+        public boolean interrupted() { return interrupted; }
     }
 
     public TransferBeamBreak(Context ctx){
@@ -64,7 +71,7 @@ public class TransferBeamBreak extends EventManager<TransferBeamBreak.BeamBreakE
     }
 
     public boolean isInterrupted(DigitalChannel sensor){
-        return sensor.getState();
+        return !sensor.getState();
     }
 
     public boolean getBreaker1Interrupted(){

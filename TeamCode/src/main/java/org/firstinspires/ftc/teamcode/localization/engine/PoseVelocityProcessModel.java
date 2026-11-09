@@ -36,16 +36,34 @@ public final class PoseVelocityProcessModel implements ProcessModel<ControlInput
         for (double noise : noisePerSecond) if (noise <= 0) throw new IllegalArgumentException("process noise must be positive");
     }
 
-    @Override public Gaussian predict(Gaussian prior, ControlInput input, double elapsedSeconds) {
-        if (prior.dimension() != RobotState.DIMENSION) throw new IllegalArgumentException("prior must have 6 dimensions");
+    @Override public double[] predictMean(double[] prior, ControlInput input, double elapsedSeconds) {
+        if (prior.length != RobotState.DIMENSION) throw new IllegalArgumentException("prior must have 6 dimensions");
         if (!Double.isFinite(elapsedSeconds) || elapsedSeconds < 0) throw new IllegalArgumentException("elapsed time is invalid");
-        if (elapsedSeconds == 0) return prior;
-        double[] predicted = transition(prior.mean(), input, elapsedSeconds);
-        SimpleMatrix jacobian = numericalJacobian(prior.mean(), input, elapsedSeconds);
+        return transition(prior, input, elapsedSeconds);
+    }
+
+    @Override public SimpleMatrix processNoise(double[] prior, ControlInput input,
+                                               double elapsedSeconds) {
         SimpleMatrix q = new SimpleMatrix(RobotState.DIMENSION, RobotState.DIMENSION);
         for (int i = 0; i < RobotState.DIMENSION; i++) q.set(i, i, noisePerSecond[i] * elapsedSeconds);
-        SimpleMatrix covariance = jacobian.mult(prior.covariance()).mult(jacobian.transpose()).plus(q);
-        return new Gaussian(predicted, MatrixOps.symmetrize(covariance));
+        return q;
+    }
+
+    @Override public double[] residual(double[] predicted, double[] actual) {
+        double[] result = ProcessModel.super.residual(predicted, actual);
+        result[RobotState.HEADING] = Pose2.angularResidual(
+                actual[RobotState.HEADING], predicted[RobotState.HEADING]);
+        return result;
+    }
+
+    @Override public double residualDifference(int row, double high, double low) {
+        return row == RobotState.HEADING ? Pose2.angularResidual(high, low) : high - low;
+    }
+
+    @Override public double[] normalize(double[] state) {
+        double[] result = state.clone();
+        result[RobotState.HEADING] = Pose2.wrap(result[RobotState.HEADING]);
+        return result;
     }
 
     private double[] transition(double[] state, ControlInput input, double dt) {

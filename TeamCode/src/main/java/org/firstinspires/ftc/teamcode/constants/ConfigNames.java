@@ -9,7 +9,7 @@ public class ConfigNames {
     public static String FR = "FR";
     public static String BL = "BL";
     public static String BR = "BR";
-    public static String OCTOQUAD = "octoquad";
+    public static String octoquad = "octoquad";
 
     public static String testMotor = "motor";
     public static String shooterLeft = "shooter1";
@@ -19,7 +19,7 @@ public class ConfigNames {
     public static String turretServo1 = "ts1";
     public static String turretServo2 = "ts2";
     public static String turretAnalogEncoder = "tAE";
-    public static String turretQuadratureEncoder = "intake";//motor of intake motor
+    public static String turretQuadratureEncoder = "tQE";
 
     public static String flowerMechanism = "wedge";
 

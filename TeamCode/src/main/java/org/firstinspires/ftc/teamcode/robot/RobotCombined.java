@@ -63,7 +63,9 @@ public class RobotCombined {
     AutomaticState automaticState = AutomaticState.INTAKING_BALLS;
     public RobotCombined(Context ctx){
         poseTelemetry = ctx.telemetry().addData("Localizer Pose: ", "unknown");
-        localizer = new MercurialLocalizer(Constants.createLocalizer(ctx.hardwareMap()));
+        Constants.MercurialComponents mercurial =
+                Constants.createMercurialComponents(ctx.hardwareMap());
+        localizer = mercurial.localizer;
 
         turretEncoder = new TurretEncoder(ctx);
         voltageMonitor = new VoltageMonitor(ctx);
@@ -83,10 +85,10 @@ public class RobotCombined {
         //send transfer beam breakers to transfer
         transferSensors = new TransferBeamBreak(ctx);
         transferSensors.addHandler(event -> {
-            if(event.sensorNum == 1){
-                transfer.updateBreaker1(event.interrupted);
+            if(event.sensorNumber() == 1){
+                transfer.updateBreaker1(event.interrupted());
             } else{
-                transfer.updateBreaker2(event.interrupted);
+                transfer.updateBreaker2(event.interrupted());
             }
             return EventManager.EventHandled.ok();
         });
@@ -95,10 +97,10 @@ public class RobotCombined {
         //send transfer beam breakers to intake
         //need this for some of the more complicated logic
         transferSensors.addHandler(event -> {
-            if(event.sensorNum == 1){
-                intake.updateBreaker1(event.interrupted);
+            if(event.sensorNumber() == 1){
+                intake.updateBreaker1(event.interrupted());
             } else{
-                intake.updateBreaker2(event.interrupted);
+                intake.updateBreaker2(event.interrupted());
             }
             return EventManager.EventHandled.ok();
         });
@@ -111,7 +113,7 @@ public class RobotCombined {
         });
 
 
-        drivetrain = new Drivetrain(ctx);
+        drivetrain = new Drivetrain(ctx, mercurial.follower);
         //send localizer pose to drivetrain
         localizer.addHandler(EventManager.forwardTo(
                 drivetrain,
@@ -194,7 +196,7 @@ public class RobotCombined {
                     firstShooting = true;
                     startTime = System.nanoTime();
                 }
-                if(System.nanoTime() - startTime > WAIT_BEFORE_RESETTING){
+                if(System.nanoTime() - startTime > WAIT_BEFORE_RESETTING * 1_000_000.0){
                     automaticState = AutomaticState.RESETTING;
                 }
                 break;
