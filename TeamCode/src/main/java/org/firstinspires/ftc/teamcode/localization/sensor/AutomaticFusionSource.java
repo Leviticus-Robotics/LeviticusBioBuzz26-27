@@ -5,11 +5,17 @@ import org.firstinspires.ftc.teamcode.fusion.factor.Factor;
 /** A localization source polled as part of {@code Localizer.update()}. */
 public interface AutomaticFusionSource {
     /**
-     * Returns a new factor timestamped by the source at measurement acquisition, or {@code null}
-     * when no measurement is available.
+     * Samples once for the supplied loop interval and returns a factor for that tick, or
+     * {@code null} when no measurement is available.
      */
-    Factor poll();
+    Factor poll(long fromTimestampNanos, long tickTimestampNanos);
 
-    /** Clears relative measurement history after the fused estimate is reset. */
-    void reset();
+    /** Publishes any source state staged by the last poll after the engine accepts the tick. */
+    default void commit() { }
+
+    /** Discards any source state staged by the last poll after the engine rejects the tick. */
+    default void rollback() { }
+
+    /** Reinitializes source history at the same timestamp as the reset fused estimate. */
+    void reset(long timestampNanos);
 }

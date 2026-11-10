@@ -57,17 +57,19 @@ class AprilTagFusionTest {
     }
 
     @Test void delayedCameraFactorReplaysThroughHeadingWrap() {
-        FusionEngine<ControlInput> engine = new FusionEngine<>(
+        PoseVelocityProcessModel model = new PoseVelocityProcessModel(1, 1, 1, 1,
+                new double[] {.01, .01, .01, .01, .01, .01});
+        FusionEngine engine = new FusionEngine(
                 RobotState.create(Pose2.zero(), 0, 0, 0,
                         MatrixOps.diagonal(1, 1, 1, 1, 1, 1)).gaussian(), 0,
-                new PoseVelocityProcessModel(1, 1, 1, 1,
-                        new double[] {.01, .01, .01, .01, .01, .01}),
-                ControlInput.ZERO,
+                model::normalize,
                 10_000_000_000L);
-        engine.predictTo(2_000_000_000L);
+        engine.commitTick(2_000_000_000L, java.util.Collections.singletonList(
+                model.factor(0, 2_000_000_000L, ControlInput.ZERO)));
         AbsolutePoseFactor factor = processor(1).combineFrame(1_000_000_000L,
                 Arrays.asList(observation(new Pose2(2, 0, Math.PI - .01))));
-        assertTrue(engine.applyFactor(factor).isAccepted());
+        assertTrue(engine.submitFactor(factor).isAccepted());
+        engine.commitTick(2_000_000_000L, java.util.Collections.emptyList());
         assertTrue(Math.abs(new RobotState(engine.state()).pose().heading()) > 2);
     }
 

@@ -1,36 +1,51 @@
 package org.firstinspires.ftc.teamcode.localization.sensor.octoquad;
 
+import com.pedropathing.localization.MotionState;
 import com.pedropathing.math.Pose;
+import com.pedropathing.math.Velocity;
 import com.pedropathing.revhub.localizers.OctoQuadLocalizer;
-import org.firstinspires.ftc.teamcode.NanoClock;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
-import org.firstinspires.ftc.teamcode.localization.factor.RelativePoseFactor;
+import org.firstinspires.ftc.teamcode.localization.factor.MotionDeltaFactor;
 import org.firstinspires.ftc.teamcode.localization.sensor.AutomaticFusionSource;
 
-/** Hardware boundary: polls Pedro's OctoQuad wrapper and produces relative pose factors. */
+/** Hardware boundary: polls Pedro's OctoQuad wrapper and produces joint motion factors. */
 public final class OctoQuadFusionSource implements AutomaticFusionSource {
     private final OctoQuadLocalizer localizer;
     private final OctoQuadFactorFactory factors;
-    private final NanoClock clock;
 
     public OctoQuadFusionSource(OctoQuadLocalizer localizer, OctoQuadFactorFactory factors,
-                               NanoClock clock) {
+                                long initialTimestampNanos) {
         if (localizer == null) throw new IllegalArgumentException("localizer is null");
         if (factors == null) throw new IllegalArgumentException("factor factory is null");
-        if (clock == null) throw new IllegalArgumentException("clock is null");
         this.localizer = localizer;
         this.factors = factors;
-        this.clock = clock;
+        establishBaseline(initialTimestampNanos);
     }
 
-    @Override public RelativePoseFactor poll() {
+    @Override public MotionDeltaFactor poll(long fromTimestampNanos,
+                                            long tickTimestampNanos) {
         localizer.update();
-        Pose pose = localizer.pose();
-        if (pose == null) return null;
-        return factors.update(
-                new Pose2(pose.x(), pose.y(), pose.heading()), clock.now());
+        MotionState state = localizer.state();
+        if (state == null) return factors.stage(null, 0, 0, 0, tickTimestampNanos);
+        Pose pose = state.pose();
+        Velocity velocity = state.velocity();
+        return factors.stage(new Pose2(pose.x(), pose.y(), pose.heading()),
+                velocity.vx, velocity.vy, velocity.omega, tickTimestampNanos);
     }
 
-    @Override public void reset() { factors.reset(); }
+    @Override public void commit() { factors.commit(); }
+    @Override public void rollback() { factors.rollback(); }
+    @Override public void reset(long timestampNanos) { establishBaseline(timestampNanos); }
     public OctoQuadLocalizer rawLocalizer() { return localizer; }
+
+    private void establishBaseline(long timestampNanos) {
+        localizer.update();
+        MotionState state = localizer.state();
+        if (state == null) {
+            throw new IllegalStateException("OctoQuad has no valid state for fusion baseline");
+        }
+        Pose pose = state.pose();
+        factors.initializeBaseline(
+                new Pose2(pose.x(), pose.y(), pose.heading()), timestampNanos);
+    }
 }

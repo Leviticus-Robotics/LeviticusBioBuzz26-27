@@ -21,18 +21,18 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
 import org.firstinspires.ftc.teamcode.localization.LocalizationConfig;
 import org.firstinspires.ftc.teamcode.NanoClock;
 import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;
-import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
 import org.firstinspires.ftc.teamcode.localization.core.RobotState;
 import org.firstinspires.ftc.teamcode.localization.engine.PoseVelocityProcessModel;
 import org.firstinspires.ftc.teamcode.localization.factor.AbsolutePoseFactor;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusedLocalizer;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusionMecanumDrivetrain;
+import org.firstinspires.ftc.teamcode.localization.sensor.CommandProcessSource;
 import org.firstinspires.ftc.teamcode.localization.sensor.apriltag.AprilTagFrameProcessor;
 import org.firstinspires.ftc.teamcode.localization.sensor.octoquad.OctoQuadFactorFactory;
 import org.firstinspires.ftc.teamcode.localization.sensor.octoquad.OctoQuadFusionSource;
 
-import java.util.Collections;
+import java.util.Arrays;
 
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
@@ -109,7 +109,8 @@ public class Constants {
             FusedLocalizationComponents fusion = createFusedLocalizationComponents(h);
             return new Follower(
                     fusion.localizer,
-                    new FusionMecanumDrivetrain(fusion.localizer, h, driveConfig),
+                    new FusionMecanumDrivetrain(
+                            fusion.processSource, h, driveConfig),
                     new Foresight(foresightConfig));
         }
         return new Follower(
@@ -150,7 +151,8 @@ public class Constants {
         return new MercurialComponents(
                 new MercurialLocalizer(fusion.localizer),
                 new MercurialFollower(
-                        new FusionMecanumDrivetrain(fusion.localizer, hardwareMap, driveConfig),
+                        new FusionMecanumDrivetrain(
+                                fusion.processSource, hardwareMap, driveConfig),
                         algorithm
                 ),
                 fusion
@@ -170,26 +172,26 @@ public class Constants {
         long now = clock.now();
         RobotState initial = RobotState.create(Pose2.zero(), 0, 0, 0,
                 fusionLocalizationConfig.initialCovariance());
-        FusionEngine<ControlInput> engine = new FusionEngine<>(
-                initial.gaussian(), now,
-                new PoseVelocityProcessModel(
-                        8.0,
-                        maximumLinearVelocity,
-                        maximumLinearVelocity,
-                        maximumAngularVelocity,
-                        fusionLocalizationConfig.processNoisePerSecond()),
-                ControlInput.ZERO,
+        PoseVelocityProcessModel processModel = new PoseVelocityProcessModel(
+                8.0,
+                maximumLinearVelocity,
+                maximumLinearVelocity,
+                maximumAngularVelocity,
+                fusionLocalizationConfig.processNoisePerSecond());
+        FusionEngine engine = new FusionEngine(
+                initial.gaussian(), now, processModel::normalize,
                 FusedLocalizer.DEFAULT_HISTORY_NANOS);
         OctoQuadLocalizer rawOctoQuad = new OctoQuadLocalizer(hardwareMap, localizerConfig);
         OctoQuadFusionSource octoQuad = new OctoQuadFusionSource(
                 rawOctoQuad,
-                new OctoQuadFactorFactory(fusionLocalizationConfig.octoQuadDeltaCovariance()),
-                clock);
+                new OctoQuadFactorFactory(fusionLocalizationConfig.octoQuadMotionCovariance()),
+                now);
+        CommandProcessSource processSource = new CommandProcessSource(processModel);
         FusedLocalizer localizer = new FusedLocalizer(
                 engine,
                 clock,
                 fusionLocalizationConfig.initialCovariance(),
-                Collections.singletonList(octoQuad));
+                Arrays.asList(processSource, octoQuad));
         AprilTagFrameProcessor aprilTagProcessor = new AprilTagFrameProcessor(
                 Constants::isStationaryLocalizationTag,
                 fusionLocalizationConfig.aprilTagCovariance(),
@@ -197,25 +199,29 @@ public class Constants {
                 fusionLocalizationConfig.aprilTagConsensusGateSquared(),
                 fusionLocalizationConfig.aprilTagDisagreementInflation(),
                 fusionLocalizationConfig.fieldConventionTransform());
-        return new FusedLocalizationComponents(localizer, octoQuad, aprilTagProcessor);
+        return new FusedLocalizationComponents(
+                localizer, processSource, octoQuad, aprilTagProcessor);
     }
 
     public static final class FusedLocalizationComponents {
         public final FusedLocalizer localizer;
+        public final CommandProcessSource processSource;
         public final OctoQuadFusionSource octoQuad;
         public final AprilTagFrameProcessor aprilTagProcessor;
 
         private FusedLocalizationComponents(FusedLocalizer localizer,
+                                            CommandProcessSource processSource,
                                             OctoQuadFusionSource octoQuad,
                                             AprilTagFrameProcessor aprilTagProcessor) {
             this.localizer = localizer;
+            this.processSource = processSource;
             this.octoQuad = octoQuad;
             this.aprilTagProcessor = aprilTagProcessor;
         }
 
         public void submitAprilTags(java.util.List<AprilTagDetection> detections) {
             AbsolutePoseFactor factor = aprilTagProcessor.fromDetections(detections);
-            if (factor != null) localizer.applyFactor(factor);
+            if (factor != null) localizer.submitFactor(factor);
         }
     }
 

@@ -9,7 +9,7 @@ import org.firstinspires.ftc.teamcode.localization.core.RobotState;
 public final class LocalizationConfig {
     private final SimpleMatrix initialCovariance;
     private final double[] processNoisePerSecond;
-    private final SimpleMatrix octoQuadDeltaCovariance;
+    private final SimpleMatrix octoQuadMotionCovariance;
     private final SimpleMatrix aprilTagCovariance;
     private final SimpleMatrix sharedCameraCovarianceFloor;
     private final double aprilTagConsensusGateSquared;
@@ -17,7 +17,7 @@ public final class LocalizationConfig {
     private final Pose2 fieldConventionTransform;
 
     public LocalizationConfig(SimpleMatrix initialCovariance, double[] processNoisePerSecond,
-                              SimpleMatrix octoQuadDeltaCovariance, SimpleMatrix aprilTagCovariance,
+                              SimpleMatrix octoQuadMotionCovariance, SimpleMatrix aprilTagCovariance,
                               SimpleMatrix sharedCameraCovarianceFloor,
                               double aprilTagConsensusGateSquared,
                               double aprilTagDisagreementInflation,
@@ -31,8 +31,8 @@ public final class LocalizationConfig {
         for (double noise : this.processNoisePerSecond) {
             if (noise <= 0) throw new IllegalArgumentException("process noise must be positive");
         }
-        this.octoQuadDeltaCovariance = MatrixOps.requirePositiveDefinite(
-                octoQuadDeltaCovariance, 3, "OctoQuad delta covariance");
+        this.octoQuadMotionCovariance = MatrixOps.requirePositiveDefinite(
+                octoQuadMotionCovariance, 6, "OctoQuad motion covariance");
         this.aprilTagCovariance = MatrixOps.requirePositiveDefinite(
                 aprilTagCovariance, 3, "AprilTag covariance");
         this.sharedCameraCovarianceFloor = MatrixOps.requirePositiveDefinite(
@@ -54,7 +54,7 @@ public final class LocalizationConfig {
         return new LocalizationConfig(
                 MatrixOps.diagonal(4, 4, .25, 25, 25, 4),
                 new double[] {.5, .5, .03, 8, 8, .5},
-                MatrixOps.diagonal(.02, .02, .002),
+                MatrixOps.diagonal(.02, .02, .002, 4, 4, .1),
                 MatrixOps.diagonal(2.25, 2.25, .04),
                 MatrixOps.diagonal(.25, .25, .01),
                 16.27, 1.0, Pose2.zero());
@@ -62,7 +62,7 @@ public final class LocalizationConfig {
 
     public SimpleMatrix initialCovariance() { return initialCovariance.copy(); }
     public double[] processNoisePerSecond() { return processNoisePerSecond.clone(); }
-    public SimpleMatrix octoQuadDeltaCovariance() { return octoQuadDeltaCovariance.copy(); }
+    public SimpleMatrix octoQuadMotionCovariance() { return octoQuadMotionCovariance.copy(); }
     public SimpleMatrix aprilTagCovariance() { return aprilTagCovariance.copy(); }
     public SimpleMatrix sharedCameraCovarianceFloor() { return sharedCameraCovarianceFloor.copy(); }
     public double aprilTagConsensusGateSquared() { return aprilTagConsensusGateSquared; }

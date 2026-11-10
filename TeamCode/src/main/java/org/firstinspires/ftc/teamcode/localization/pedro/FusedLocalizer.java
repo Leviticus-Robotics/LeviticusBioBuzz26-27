@@ -11,12 +11,11 @@ import java.util.List;
 import java.util.Map;
 import org.ejml.simple.SimpleMatrix;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
+import org.firstinspires.ftc.teamcode.fusion.engine.FactorApplicationResult;
 import org.firstinspires.ftc.teamcode.fusion.engine.FusionDiagnostics;
 import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;
-import org.firstinspires.ftc.teamcode.fusion.engine.FactorApplicationResult;
 import org.firstinspires.ftc.teamcode.fusion.factor.Factor;
 import org.firstinspires.ftc.teamcode.NanoClock;
-import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
 import org.firstinspires.ftc.teamcode.localization.core.RobotState;
 import org.firstinspires.ftc.teamcode.localization.sensor.AutomaticFusionSource;
@@ -25,17 +24,17 @@ import org.firstinspires.ftc.teamcode.localization.sensor.AutomaticFusionSource;
 public final class FusedLocalizer implements Localizer {
     public static final long DEFAULT_HISTORY_NANOS = 2_000_000_000L;
 
-    private final FusionEngine<ControlInput> engine;
+    private final FusionEngine engine;
     private final NanoClock clock;
     private final SimpleMatrix resetCovariance;
     private final List<AutomaticFusionSource> automaticSources;
 
-    public FusedLocalizer(FusionEngine<ControlInput> engine, NanoClock clock,
+    public FusedLocalizer(FusionEngine engine, NanoClock clock,
                           SimpleMatrix resetCovariance) {
         this(engine, clock, resetCovariance, Collections.emptyList());
     }
 
-    public FusedLocalizer(FusionEngine<ControlInput> engine, NanoClock clock,
+    public FusedLocalizer(FusionEngine engine, NanoClock clock,
                           SimpleMatrix resetCovariance,
                           List<? extends AutomaticFusionSource> automaticSources) {
         if (engine == null) throw new IllegalArgumentException("engine is null");
@@ -67,24 +66,30 @@ public final class FusedLocalizer implements Localizer {
     }
 
     @Override public void update() {
-        for (AutomaticFusionSource source : automaticSources) {
-            Factor factor = source.poll();
-            if (factor != null) engine.applyFactor(factor);
+        long tickTimestamp = clock.now();
+        long previousTimestamp = engine.timestampNanos();
+        List<Factor> tickFactors = new ArrayList<>();
+        try {
+            for (AutomaticFusionSource source : automaticSources) {
+                Factor factor = source.poll(previousTimestamp, tickTimestamp);
+                if (factor != null) tickFactors.add(factor);
+            }
+        } catch (RuntimeException exception) {
+            for (AutomaticFusionSource source : automaticSources) source.rollback();
+            throw exception;
         }
-        engine.predictTo(clock.now());
+        FactorApplicationResult result = engine.commitTick(tickTimestamp, tickFactors);
+        if (result.isAccepted()) {
+            for (AutomaticFusionSource source : automaticSources) source.commit();
+        } else {
+            for (AutomaticFusionSource source : automaticSources) source.rollback();
+            throw new IllegalStateException(result.reason);
+        }
     }
 
-    /** Advances the process model without polling automatic measurement sources. */
-    public void predictToNow() { engine.predictTo(clock.now()); }
-
-    /** Applies an externally produced, timestamped factor such as an AprilTag frame. */
-    public FactorApplicationResult applyFactor(Factor factor) {
-        return engine.applyFactor(factor);
-    }
-
-    /** Records the chassis command that was actually applied by the drivetrain. */
-    public void setDriveInput(double forward, double strafe, double turn) {
-        engine.setInput(clock.now(), new ControlInput(forward, strafe, turn));
+    /** Queues an externally produced factor for the next atomic tick commit. */
+    public FactorApplicationResult submitFactor(Factor factor) {
+        return engine.submitFactor(factor);
     }
 
     @Override public void reset() {
@@ -92,19 +97,19 @@ public final class FusedLocalizer implements Localizer {
     }
 
     private void reset(RobotState state) {
-        for (AutomaticFusionSource source : automaticSources) source.reset();
-        engine.resetState(state.gaussian(), clock.now());
+        long timestampNanos = clock.now();
+        engine.resetState(state.gaussian(), timestampNanos);
+        for (AutomaticFusionSource source : automaticSources) source.reset(timestampNanos);
     }
 
     @Override public Map<String, Object> debug() {
-        FusionDiagnostics<?> diagnostics = engine.diagnostics();
+        FusionDiagnostics diagnostics = engine.diagnostics();
         RobotState state = new RobotState(engine.state());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("pose", state.pose());
         result.put("velocity", new double[] {state.vx(), state.vy(), state.omega()});
         result.put("covarianceDiagonal", covarianceDiagonal(state.covariance()));
-        result.put("activeInput", diagnostics.activeInput);
-        result.put("historyEvents", diagnostics.historyEventCount);
+        result.put("historyItems", diagnostics.historyItemCount);
         result.put("recomputationNanos", diagnostics.lastRecomputationDurationNanos);
         result.put("acceptedFactors", diagnostics.acceptedFactorCount);
         result.put("rejectedFactors", diagnostics.rejectedFactorCount);
@@ -119,5 +124,5 @@ public final class FusedLocalizer implements Localizer {
         return result;
     }
 
-    public FusionEngine<ControlInput> engine() { return engine; }
+    public FusionEngine engine() { return engine; }
 }
