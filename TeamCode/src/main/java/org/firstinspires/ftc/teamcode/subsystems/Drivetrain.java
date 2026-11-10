@@ -12,6 +12,8 @@ import com.pedropathing.paths.PathTracker;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.Constants;
+import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
+import org.firstinspires.ftc.teamcode.localization.pedro.FusionMecanumDrivetrain;
 import org.jetbrains.annotations.NotNull;
 
 import dev.frozenmilk.dairy.mercurial.continuations.Continuation;
@@ -36,6 +38,7 @@ import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.express
 public class Drivetrain extends SwitchedStateMachine {
     //check Mercuiral GitHub, most of the code the same, added timeouts for follow paths
     private final MercurialFollower follower;
+    private final FusionMecanumDrivetrain appliedInputEvents;
     private Channel<MotionState> motionStates = linkedSingleChannel();//handle localization input
     private Channel<DrivePowers> drivePowers = linkedSingleChannel();//handle drive inputs
     //linked single channel so that if the state machine stops, the channel closes automatically
@@ -46,12 +49,13 @@ public class Drivetrain extends SwitchedStateMachine {
     Mode fieldCentric;
     Mode robotCentric;
     public Drivetrain(Context ctx){
-        this(ctx, Constants.createFollower(ctx.hardwareMap()));
+        this(ctx, new FusionMecanumDrivetrain(ctx.hardwareMap(), Constants.driveConfig));
     }
 
-    public Drivetrain(Context ctx, MercurialFollower follower){
-        if (follower == null) throw new IllegalArgumentException("follower is null");
-        this.follower = follower;
+    public Drivetrain(Context ctx, FusionMecanumDrivetrain drivetrain){
+        if (drivetrain == null) throw new IllegalArgumentException("drivetrain is null");
+        appliedInputEvents = drivetrain;
+        follower = Constants.createFollower(drivetrain);
         stateTelemetry = ctx.telemetry().addData("Drivetrain/State", "unknown");//can't use normal telemetry
         //enter idle mode when start
         idle = entranceMode(from -> {
@@ -225,6 +229,11 @@ public class Drivetrain extends SwitchedStateMachine {
 
     public void sendMotionState(MotionState motionState) {
         motionStates.send(motionState);
+    }
+
+    /** Receives the commands actually applied by Pedro after drivetrain scaling. */
+    public void addHandler(EventManager.Handler<ControlInput> handler) {
+        appliedInputEvents.addHandler(handler);
     }
 
     public void fieldCentric() {

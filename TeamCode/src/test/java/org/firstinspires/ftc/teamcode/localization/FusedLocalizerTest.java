@@ -25,8 +25,8 @@ import org.junit.jupiter.api.Test;
 
 class FusedLocalizerTest {
     private static PoseVelocityProcessModel model() {
-        return new PoseVelocityProcessModel(
-                1, 1, 1, 1, new double[] {.1, .1, .1, .1, .1, .1});
+        return new PoseVelocityProcessModel(new PoseVelocityProcessModel.Config(
+                1, 1, 1, 1, new double[] {.1, .1, .1, .1, .1, .1}));
     }
 
     private static FusionEngine engine() {
@@ -37,11 +37,16 @@ class FusedLocalizerTest {
                 10_000_000_000L);
     }
 
+    private static FusedLocalizer.Config config() {
+        return FusedLocalizer.Config.defaults().withInitialCovariance(
+                MatrixOps.diagonal(1, 1, 1, 1, 1, 1));
+    }
+
     @Test void adaptsPoseVelocityUpdateResetAndDebugWithInjectedSources() {
         AtomicLong time = new AtomicLong(0);
         FakeSource source = new FakeSource();
-        FusedLocalizer localizer = new FusedLocalizer(engine(), time::get,
-                MatrixOps.diagonal(1, 1, 1, 1, 1, 1), sources(source));
+        FusedLocalizer localizer = new FusedLocalizer(
+                engine(), time::get, config(), sources(source));
         assertEquals(1, localizer.velocity().vx, 1e-12);
         localizer.setPose(new Pose(4, 5, .2));
         assertEquals(4, localizer.pose().x(), 1e-12);
@@ -51,7 +56,7 @@ class FusedLocalizerTest {
         assertTrue(localizer.debug().containsKey("covarianceDiagonal"));
         localizer.reset();
         assertEquals(0, localizer.pose().x(), 1e-12);
-        assertEquals(2, source.resets.get());
+        assertEquals(3, source.resets.get());
         assertEquals(1, source.polls.get());
         assertEquals(1, source.commits.get());
     }
@@ -61,8 +66,8 @@ class FusedLocalizerTest {
         FakeSource source = new FakeSource();
         source.next = new PoseDeltaFactor("automatic", 0, time.get(),
                 new Pose2(5, 0, 0), MatrixOps.diagonal(.001, .001, .001));
-        FusedLocalizer localizer = new FusedLocalizer(engine(), time::get,
-                MatrixOps.diagonal(1, 1, 1, 1, 1, 1), sources(source));
+        FusedLocalizer localizer = new FusedLocalizer(
+                engine(), time::get, config(), sources(source));
 
         localizer.update();
 
@@ -73,7 +78,7 @@ class FusedLocalizerTest {
 
     @Test void externalFactorIsAppliedAtNextAtomicTick() {
         FusedLocalizer localizer = new FusedLocalizer(
-                engine(), () -> 0, MatrixOps.diagonal(1, 1, 1, 1, 1, 1),
+                engine(), () -> 0, config(),
                 Collections.emptyList());
 
         localizer.submitFactor(new AbsolutePoseFactor("camera", 0,
@@ -90,7 +95,7 @@ class FusedLocalizerTest {
         FakeSource source = new FakeSource();
         source.onPoll = () -> time.set(2_000_000_000L);
         FusedLocalizer localizer = new FusedLocalizer(
-                engine(), time::get, MatrixOps.diagonal(1, 1, 1, 1, 1, 1),
+                engine(), time::get, config(),
                 sources(source));
 
         localizer.update();
@@ -102,7 +107,7 @@ class FusedLocalizerTest {
         FakeSource source = new FakeSource();
         FusedLocalizer localizer = new FusedLocalizer(
                 engine(), () -> 1_000_000_000L,
-                MatrixOps.diagonal(1, 1, 1, 1, 1, 1),
+                config(),
                 Collections.singletonList(source));
 
         assertThrows(IllegalStateException.class, localizer::update);

@@ -78,8 +78,9 @@ class FusionLoopBenchmarkTest {
     }
 
     private static PoseVelocityProcessModel model() {
-        return new PoseVelocityProcessModel(8, 60, 60, 4,
-                new double[] {.02, .02, .002, .2, .2, .02});
+        return new PoseVelocityProcessModel(new PoseVelocityProcessModel.Config(
+                8, 60, 60, 4,
+                new double[] {.02, .02, .002, .2, .2, .02}));
     }
 
     private static FusionEngine engine(ProcessModel<ControlInput> model) {

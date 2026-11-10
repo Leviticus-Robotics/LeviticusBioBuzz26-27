@@ -3,9 +3,11 @@ package org.firstinspires.ftc.teamcode.localization.sensor;
 import org.firstinspires.ftc.teamcode.fusion.engine.ProcessModel;
 import org.firstinspires.ftc.teamcode.fusion.factor.ProcessFactor;
 import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
+import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 
 /** Produces one ordinary process factor from the command active over each loop interval. */
-public final class CommandProcessSource implements AutomaticFusionSource {
+public final class CommandProcessSource implements AutomaticFusionSource,
+        EventManager.Handler<ControlInput> {
     private final ProcessModel<ControlInput> model;
     private ControlInput activeInput = ControlInput.ZERO;
 
@@ -19,6 +21,12 @@ public final class CommandProcessSource implements AutomaticFusionSource {
     }
 
     public ControlInput activeInput() { return activeInput; }
+
+    @Override public EventManager.EventHandled<ControlInput> handleEvent(ControlInput input) {
+        if (input == null) throw new IllegalArgumentException("control input is null");
+        activeInput = input;
+        return EventManager.EventHandled.ok();
+    }
 
     @Override public ProcessFactor<ControlInput> poll(long fromTimestampNanos,
                                                        long tickTimestampNanos) {

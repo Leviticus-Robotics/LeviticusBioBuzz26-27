@@ -13,12 +13,16 @@ public final class OctoQuadFusionSource implements AutomaticFusionSource {
     private final OctoQuadLocalizer localizer;
     private final OctoQuadFactorFactory factors;
 
-    public OctoQuadFusionSource(OctoQuadLocalizer localizer, OctoQuadFactorFactory factors,
-                                long initialTimestampNanos) {
+    public OctoQuadFusionSource(OctoQuadLocalizer localizer, OctoQuadFactorFactory factors) {
         if (localizer == null) throw new IllegalArgumentException("localizer is null");
         if (factors == null) throw new IllegalArgumentException("factor factory is null");
         this.localizer = localizer;
         this.factors = factors;
+    }
+
+    public OctoQuadFusionSource(OctoQuadLocalizer localizer, OctoQuadFactorFactory factors,
+                                long initialTimestampNanos) {
+        this(localizer, factors);
         establishBaseline(initialTimestampNanos);
     }
 

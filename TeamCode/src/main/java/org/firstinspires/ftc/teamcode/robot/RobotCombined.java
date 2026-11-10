@@ -8,10 +8,14 @@ import androidx.annotation.NonNull;
 import com.seattlesolvers.solverslib.command.SequentialCommandGroup;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.teamcode.BallSlot;
 import org.firstinspires.ftc.teamcode.constants.Constants;
 import org.firstinspires.ftc.teamcode.game.ALLIANCE;
 import org.firstinspires.ftc.teamcode.game.SIDE;
+import org.firstinspires.ftc.teamcode.localization.factor.AbsolutePoseFactor;
+import org.firstinspires.ftc.teamcode.localization.pedro.FusedLocalizer;
+import org.firstinspires.ftc.teamcode.localization.sensor.apriltag.AprilTagFrameProcessor;
 import org.firstinspires.ftc.teamcode.sensor.IntakeBallSensors;
 import org.firstinspires.ftc.teamcode.sensor.TransferBeamBreak;
 import org.firstinspires.ftc.teamcode.sensor.TurretEncoder;
@@ -23,6 +27,8 @@ import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 import org.firstinspires.ftc.teamcode.subsystems.Transfer;
 import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
 import org.firstinspires.ftc.teamcode.subsystems.Turret;
+
+import java.util.List;
 
 import dev.frozenmilk.dairy.mercurial.continuations.Command;
 import dev.frozenmilk.dairy.mercurial.continuations.Continuation;
@@ -48,6 +54,8 @@ public class RobotCombined {
     TurretEncoder turretEncoder;
     TransferGate transferGate;
     Telemetry.Item poseTelemetry;
+    FusedLocalizer fusedLocalizer;
+    AprilTagFrameProcessor aprilTagProcessor;
 
     public enum ShootingMode{
         Manual, //need to manually trigger the transfer gate to acitvate/inactivate
@@ -63,9 +71,12 @@ public class RobotCombined {
     AutomaticState automaticState = AutomaticState.INTAKING_BALLS;
     public RobotCombined(Context ctx){
         poseTelemetry = ctx.telemetry().addData("Localizer Pose: ", "unknown");
-        Constants.MercurialComponents mercurial =
-                Constants.createMercurialComponents(ctx.hardwareMap());
-        localizer = mercurial.localizer;
+        drivetrain = new Drivetrain(ctx);
+        localizer = Constants.createLocalizer(ctx.hardwareMap(), drivetrain);
+        if (Constants.useFusedLocalization) {
+            fusedLocalizer = (FusedLocalizer) localizer.localizer();
+            aprilTagProcessor = Constants.createAprilTagProcessor();
+        }
 
         turretEncoder = new TurretEncoder(ctx);
         voltageMonitor = new VoltageMonitor(ctx);
@@ -113,7 +124,6 @@ public class RobotCombined {
         });
 
 
-        drivetrain = new Drivetrain(ctx, mercurial.follower);
         //send localizer pose to drivetrain
         localizer.addHandler(EventManager.forwardTo(
                 drivetrain,
@@ -161,6 +171,13 @@ public class RobotCombined {
 
         transferGate = new TransferGate(ctx);
 
+    }
+
+    /** Queues one camera frame when fused localization is enabled. */
+    public void submitAprilTags(List<AprilTagDetection> detections) {
+        if (fusedLocalizer == null || aprilTagProcessor == null) return;
+        AbsolutePoseFactor factor = aprilTagProcessor.fromDetections(detections);
+        if (factor != null) fusedLocalizer.submitFactor(factor);
     }
 
 

@@ -14,8 +14,9 @@ import org.firstinspires.ftc.teamcode.localization.factor.AbsolutePoseFactor;
 
 class ProcessAndFactorTest {
     private static PoseVelocityProcessModel model() {
-        return new PoseVelocityProcessModel(20, 10, 10, 2,
-                new double[] {1e-6, 1e-6, 1e-6, 1e-5, 1e-5, 1e-5});
+        return new PoseVelocityProcessModel(new PoseVelocityProcessModel.Config(
+                20, 10, 10, 2,
+                new double[] {1e-6, 1e-6, 1e-6, 1e-5, 1e-5, 1e-5}));
     }
 
     private static Gaussian zeroState() {

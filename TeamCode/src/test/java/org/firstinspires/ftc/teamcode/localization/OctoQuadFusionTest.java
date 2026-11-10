@@ -87,7 +87,8 @@ class OctoQuadFusionTest {
         RobotState initial = RobotState.create(Pose2.zero(), 0, 0, 0,
                 MatrixOps.diagonal(1, 1, 1, 1, 1, 1));
         PoseVelocityProcessModel model = new PoseVelocityProcessModel(
-                1, 2, 2, 2, new double[] {.1, .1, .1, .1, .1, .1});
+                new PoseVelocityProcessModel.Config(
+                        1, 2, 2, 2, new double[] {.1, .1, .1, .1, .1, .1}));
         FusionEngine engine = new FusionEngine(initial.gaussian(), 0, model::normalize,
                 10_000_000_000L);
         MotionDeltaFactor octo = new MotionDeltaFactor(

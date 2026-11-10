@@ -8,20 +8,17 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import java.util.Map;
 import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
-import org.firstinspires.ftc.teamcode.localization.sensor.CommandProcessSource;
+import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 
-/** Mecanum drivetrain that records the motor powers Pedro actually applied. */
-public final class FusionMecanumDrivetrain implements Drivetrain {
-    private final CommandProcessSource processSource;
+/** Mecanum drivetrain that publishes the motor powers Pedro actually applied. */
+public final class FusionMecanumDrivetrain extends EventManager<ControlInput>
+        implements Drivetrain {
     private final Mecanum drivetrain;
     private final DcMotorEx frontLeftMotor;
     private final DcMotorEx frontRightMotor;
     private final DcMotorEx backLeftMotor;
     private final DcMotorEx backRightMotor;
-    public FusionMecanumDrivetrain(CommandProcessSource processSource,
-                                   HardwareMap hardwareMap, MecanumConfig config) {
-        if (processSource == null) throw new IllegalArgumentException("process source is null");
-        this.processSource = processSource;
+    public FusionMecanumDrivetrain(HardwareMap hardwareMap, MecanumConfig config) {
         this.drivetrain = new Mecanum(hardwareMap, config);
         this.frontLeftMotor = hardwareMap.get(DcMotorEx.class, config.frontLeftName.get());
         this.frontRightMotor = hardwareMap.get(DcMotorEx.class, config.frontRightName.get());
@@ -58,7 +55,7 @@ public final class FusionMecanumDrivetrain implements Drivetrain {
         ControlInput input = fromWheelPowers(
                 frontLeftMotor.getPower(), frontRightMotor.getPower(),
                 backLeftMotor.getPower(), backRightMotor.getPower());
-        processSource.setInput(input.forwardPower, input.strafePower, input.turnPower);
+        notify(input);
     }
 
     static ControlInput fromWheelPowers(double frontLeft, double frontRight,

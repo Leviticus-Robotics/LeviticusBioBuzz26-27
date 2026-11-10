@@ -27,6 +27,16 @@ public final class RobotState {
         }, covariance));
     }
 
+    /** Canonicalizes coordinates that have equivalent representations. */
+    public static double[] normalize(double[] state) {
+        if (state == null || state.length != DIMENSION) {
+            throw new IllegalArgumentException("robot state must have 6 dimensions");
+        }
+        double[] result = state.clone();
+        result[HEADING] = Pose2.wrap(result[HEADING]);
+        return result;
+    }
+
     public Gaussian gaussian() { return gaussian; }
     public Pose2 pose() { return new Pose2(gaussian.mean(X), gaussian.mean(Y), gaussian.mean(HEADING)); }
     public double vx() { return gaussian.mean(VX); }

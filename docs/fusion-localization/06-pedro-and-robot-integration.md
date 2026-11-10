@@ -2,29 +2,29 @@
 
 ## Construction
 
-`Constants.createFusedLocalizationComponents()` is the composition root. It creates and connects:
+`Constants.createLocalizer(hardwareMap, drivetrain)` is the localization composition root. It creates and connects:
 
 ```text
-LocalizationConfig
+FusedLocalizer.Config + PoseVelocityProcessModel.Config
       │
       ├── initial RobotState
       ├── PoseVelocityProcessModel
       ├── CommandProcessSource
-      ├── FusionEngine
       ├── OctoQuadLocalizer
       ├── OctoQuadFusionSource
       ├── AprilTagFrameProcessor
-      └── FusedLocalizer
+      └── createLocalizer(sources)
+              ├── FusionEngine
+              └── FusedLocalizer
 ```
 
 The configured `FusedLocalizer` uses:
 
 - `CommandProcessSource` and OctoQuad as automatically polled factor sources.
-- OctoQuad as an automatically polled factor source.
 - A two-second engine history.
 - AprilTags as externally submitted asynchronous factors.
 
-`FusedLocalizationComponents` bundles the localizer, command-process source, OctoQuad source, and AprilTag processor for the robot layer.
+The robot constructs its drivetrain first and passes that instance into the localizer factory. Constants registers `CommandProcessSource` as a handler of the drivetrain's applied-input events. No component-bundle type is needed.
 
 ## One `FusedLocalizer.update()`
 
@@ -53,7 +53,7 @@ The process model needs the command that was actually applied during the interva
 u=[u_{forward},u_{strafe},u_{turn}].
 \]
 
-Those components become `CommandProcessSource.activeInput`. At the next advancing localization update, that source captures the input in a new ordinary `ProcessFactor`.
+`FusionMecanumDrivetrain` is an `EventManager<ControlInput>`. The robot registers `CommandProcessSource` as its handler. At the next advancing localization update, that source captures the most recently published input in a new ordinary `ProcessFactor`.
 
 The intended time interpretation is:
 
@@ -91,10 +91,10 @@ Localization remains independent of shooter, drivetrain-control, and autonomous 
 
 ## AprilTag submission path
 
-AprilTags are not polled inside `FusedLocalizer.update()` because camera processing may complete asynchronously. The composition bundle exposes:
+AprilTags are not polled inside `FusedLocalizer.update()` because camera processing may complete asynchronously. The robot exposes:
 
 ```java
-fusion.submitAprilTags(detections);
+robot.submitAprilTags(detections);
 ```
 
 That method:

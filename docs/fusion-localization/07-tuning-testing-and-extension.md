@@ -14,16 +14,22 @@ Tune standard deviations from data first, then square them to obtain diagonal va
 
 ## Current configuration values
 
-`LocalizationConfig.defaults()` supplies:
+`FusedLocalizer.Config.defaults()` supplies:
 
 - Initial six-state covariance.
-- Six process-noise rates per second.
 - OctoQuad joint pose-delta and velocity covariance.
 - Per-detection AprilTag covariance.
 - Shared camera covariance floor.
 - Same-frame AprilTag consensus gate.
 - Disagreement inflation.
 - Field-convention transform.
+- Retained history duration.
+
+`PoseVelocityProcessModel.Config.defaults()` supplies:
+
+- Velocity response rate.
+- Maximum forward, strafe, and angular velocities.
+- Six process-noise rates per second.
 
 Treat defaults as starting points, not sensor specifications.
 

@@ -57,8 +57,9 @@ class AprilTagFusionTest {
     }
 
     @Test void delayedCameraFactorReplaysThroughHeadingWrap() {
-        PoseVelocityProcessModel model = new PoseVelocityProcessModel(1, 1, 1, 1,
-                new double[] {.01, .01, .01, .01, .01, .01});
+        PoseVelocityProcessModel model = new PoseVelocityProcessModel(
+                new PoseVelocityProcessModel.Config(1, 1, 1, 1,
+                        new double[] {.01, .01, .01, .01, .01, .01}));
         FusionEngine engine = new FusionEngine(
                 RobotState.create(Pose2.zero(), 0, 0, 0,
                         MatrixOps.diagonal(1, 1, 1, 1, 1, 1)).gaussian(), 0,

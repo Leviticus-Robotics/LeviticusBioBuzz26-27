@@ -17,8 +17,9 @@ import org.junit.jupiter.api.Test;
 
 class LocalizationEngineTest {
     private static PoseVelocityProcessModel model() {
-        return new PoseVelocityProcessModel(10, 10, 10, 2,
-                new double[] {1e-4, 1e-4, 1e-4, 1e-3, 1e-3, 1e-3});
+        return new PoseVelocityProcessModel(new PoseVelocityProcessModel.Config(
+                10, 10, 10, 2,
+                new double[] {1e-4, 1e-4, 1e-4, 1e-3, 1e-3, 1e-3}));
     }
 
     private FusionEngine engine(long historyNanos) {

@@ -15,24 +15,13 @@ public final class PoseVelocityProcessModel implements ProcessModel<ControlInput
     private final double maximumAngularVelocity;
     private final double[] noisePerSecond;
 
-    public PoseVelocityProcessModel(double velocityResponse, double maximumForwardVelocity,
-                                    double maximumStrafeVelocity, double maximumAngularVelocity,
-                                    double[] noisePerSecond) {
-        if (!Double.isFinite(velocityResponse) || velocityResponse < 0) {
-            throw new IllegalArgumentException("velocity response must be finite and nonnegative");
-        }
-        if (!Double.isFinite(maximumForwardVelocity) || maximumForwardVelocity <= 0
-                || !Double.isFinite(maximumStrafeVelocity) || maximumStrafeVelocity <= 0
-                || !Double.isFinite(maximumAngularVelocity) || maximumAngularVelocity <= 0) {
-            throw new IllegalArgumentException("maximum model velocities must be positive and finite");
-        }
-        this.velocityResponse = velocityResponse;
-        this.maximumForwardVelocity = maximumForwardVelocity;
-        this.maximumStrafeVelocity = maximumStrafeVelocity;
-        this.maximumAngularVelocity = maximumAngularVelocity;
-        this.noisePerSecond = MatrixOps.copyVector(noisePerSecond, "process noise");
-        if (noisePerSecond.length != RobotState.DIMENSION) throw new IllegalArgumentException("process noise must have 6 values");
-        for (double noise : noisePerSecond) if (noise <= 0) throw new IllegalArgumentException("process noise must be positive");
+    public PoseVelocityProcessModel(Config config) {
+        if (config == null) throw new IllegalArgumentException("process config is null");
+        velocityResponse = config.velocityResponse();
+        maximumForwardVelocity = config.maximumForwardVelocity();
+        maximumStrafeVelocity = config.maximumStrafeVelocity();
+        maximumAngularVelocity = config.maximumAngularVelocity();
+        noisePerSecond = config.noisePerSecond();
     }
 
     @Override public double[] predictMean(double[] prior, ControlInput input, double elapsedSeconds) {
@@ -80,6 +69,57 @@ public final class PoseVelocityProcessModel implements ProcessModel<ControlInput
                 Pose2.wrap(heading + 0.5 * (state[RobotState.OMEGA] + omega) * dt),
                 vx, vy, omega
         };
+    }
+
+    /** Immutable process-dynamics and process-noise configuration. */
+    public static final class Config {
+        private final double velocityResponse;
+        private final double maximumForwardVelocity;
+        private final double maximumStrafeVelocity;
+        private final double maximumAngularVelocity;
+        private final double[] noisePerSecond;
+
+        public Config(double velocityResponse, double maximumForwardVelocity,
+                      double maximumStrafeVelocity, double maximumAngularVelocity,
+                      double[] noisePerSecond) {
+            if (!Double.isFinite(velocityResponse) || velocityResponse < 0) {
+                throw new IllegalArgumentException(
+                        "velocity response must be finite and nonnegative");
+            }
+            if (!Double.isFinite(maximumForwardVelocity) || maximumForwardVelocity <= 0
+                    || !Double.isFinite(maximumStrafeVelocity) || maximumStrafeVelocity <= 0
+                    || !Double.isFinite(maximumAngularVelocity)
+                    || maximumAngularVelocity <= 0) {
+                throw new IllegalArgumentException(
+                        "maximum model velocities must be positive and finite");
+            }
+            this.noisePerSecond = MatrixOps.copyVector(noisePerSecond, "process noise");
+            if (this.noisePerSecond.length != RobotState.DIMENSION) {
+                throw new IllegalArgumentException("process noise must have 6 values");
+            }
+            for (double noise : this.noisePerSecond) {
+                if (noise <= 0) throw new IllegalArgumentException("process noise must be positive");
+            }
+            this.velocityResponse = velocityResponse;
+            this.maximumForwardVelocity = maximumForwardVelocity;
+            this.maximumStrafeVelocity = maximumStrafeVelocity;
+            this.maximumAngularVelocity = maximumAngularVelocity;
+        }
+
+        public static Config defaults() {
+            return new Config(8, 80, 80, 4,
+                    new double[] {.5, .5, .03, 8, 8, .5});
+        }
+
+        public Config withMaximumVelocities(double forward, double strafe, double angular) {
+            return new Config(velocityResponse, forward, strafe, angular, noisePerSecond);
+        }
+
+        public double velocityResponse() { return velocityResponse; }
+        public double maximumForwardVelocity() { return maximumForwardVelocity; }
+        public double maximumStrafeVelocity() { return maximumStrafeVelocity; }
+        public double maximumAngularVelocity() { return maximumAngularVelocity; }
+        public double[] noisePerSecond() { return noisePerSecond.clone(); }
     }
 
 }
