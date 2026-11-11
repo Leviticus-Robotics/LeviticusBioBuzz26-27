@@ -25,7 +25,7 @@ For localization:
 
 Correlations are operationally important. If pose and velocity are correlated, an accurate pose observation can also correct velocity.
 
-`Gaussian` stores the mean/covariance form. `InformationGaussian` stores the equivalent information form:
+`Gaussian` stores mean/covariance form. `InformationGaussian` stores the equivalent information vector and matrix and supports addition and positive scaling:
 
 \[
 \Lambda=P^{-1},\qquad \eta=\Lambda\mu.
@@ -93,6 +93,8 @@ With the code's residual convention, the corrected mean is
 \]
 
 `GaussianUpdater.applyAll()` implements this batch. All factors for a tick are linearized at the same prior mean and accumulated before the state changes. Consequently, reordering independent factors within that batch does not change the result, apart from floating-point roundoff.
+
+`GaussianFusion.product()` multiplies independent Gaussian densities by adding information. `informationAverage()` averages information for correlated estimates, while `disagreementCovariance()` measures the empirical spread of their means.
 
 This is different from applying factors one at a time and relinearizing after each one, which can make a nonlinear update order-dependent.
 

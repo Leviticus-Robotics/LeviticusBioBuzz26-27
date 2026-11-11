@@ -108,7 +108,10 @@ public final class PoseVelocityProcessModel implements ProcessModel<ControlInput
 
         public static Config defaults() {
             return new Config(8, 80, 80, 4,
-                    new double[] {.5, .5, .03, 8, 8, .5});
+                    // Variance accumulated per second for x, y, heading, vx, vy, omega.
+                    // At 50 Hz this becomes [.1, .1, .004, 1, 1, .06], keeping the
+                    // command model substantially weaker than measured OctoQuad motion.
+                    new double[] {5, 5, .2, 50, 50, 3});
         }
 
         public Config withMaximumVelocities(double forward, double strafe, double angular) {

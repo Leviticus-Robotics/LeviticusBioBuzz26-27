@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.ejml.simple.SimpleMatrix;
 import org.firstinspires.ftc.teamcode.fusion.core.Gaussian;
 import org.firstinspires.ftc.teamcode.fusion.core.GaussianUpdater;
+import org.firstinspires.ftc.teamcode.fusion.core.GaussianFusion;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
-import org.firstinspires.ftc.teamcode.fusion.engine.FactorApplicationResult;
 import org.junit.jupiter.api.Test;
 
 class FusionMathTest {
@@ -16,6 +16,22 @@ class FusionMathTest {
         Gaussian roundTrip = original.toInformation().toGaussian();
         assertArrayEquals(original.mean(), roundTrip.mean(), 1e-10);
         assertTrue(original.covariance().isIdentical(roundTrip.covariance(), 1e-10));
+    }
+
+    @Test void GaussianCombinationPoliciesRemainDistinct() {
+        java.util.List<Gaussian> observations = java.util.Arrays.asList(
+                new Gaussian(new double[] {0}, MatrixOps.diagonal(1)),
+                new Gaussian(new double[] {2}, MatrixOps.diagonal(1)));
+
+        Gaussian product = GaussianFusion.product(observations);
+        Gaussian average = GaussianFusion.informationAverage(observations);
+
+        assertEquals(1, product.mean(0), 1e-12);
+        assertEquals(.5, product.covariance().get(0), 1e-12);
+        assertEquals(1, average.mean(0), 1e-12);
+        assertEquals(1, average.covariance().get(0), 1e-12);
+        assertEquals(1, GaussianFusion.disagreementCovariance(
+                observations, average.mean()).get(0), 1e-12);
     }
 
     @Test void partialMeasurementUpdatesCorrelatedDimensions() {
@@ -40,15 +56,6 @@ class FusionMathTest {
                 () -> new Gaussian(new double[] {0, 0}, MatrixOps.diagonal(1)));
         assertThrows(IllegalArgumentException.class,
                 () -> new Gaussian(new double[] {0}, MatrixOps.diagonal(Double.NaN)));
-    }
-
-    @Test void factorApplicationResultDistinguishesAcceptanceFromRejection() {
-        assertEquals(FactorApplicationResult.Status.ACCEPTED,
-                FactorApplicationResult.accepted().status);
-        assertTrue(FactorApplicationResult.accepted().isAccepted());
-        assertEquals(FactorApplicationResult.Status.REJECTED,
-                FactorApplicationResult.rejected("invalid sample").status);
-        assertFalse(FactorApplicationResult.rejected("invalid sample").isAccepted());
     }
 
 }

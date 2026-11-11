@@ -36,21 +36,13 @@ public final class ProcessFactor<I> implements RelativeFactor {
         return source + ":" + fromTimestampNanos + ":" + toTimestampNanos;
     }
 
-    @Override public double[] residual(StateValues values) {
+    @Override public LinearizedFactor linearize(StateValues values) {
         double[] from = values.state(fromTimestampNanos);
         double[] predicted = model.normalize(model.predictMean(from, input, elapsedSeconds));
-        return model.residual(predicted, values.state(toTimestampNanos));
-    }
-
-    @Override public SimpleMatrix covariance(StateValues values) {
-        return model.processNoise(values.state(fromTimestampNanos), input, elapsedSeconds);
-    }
-
-    @Override public SimpleMatrix[] jacobians(StateValues values) {
-        double[] from = values.state(fromTimestampNanos);
         SimpleMatrix transition = model.transitionJacobian(from, input, elapsedSeconds);
-        return new SimpleMatrix[] {
-                transition.negative(), SimpleMatrix.identity(from.length)
-        };
+        return new LinearizedFactor(
+                model.residual(predicted, values.state(toTimestampNanos)),
+                model.processNoise(from, input, elapsedSeconds),
+                transition.negative(), SimpleMatrix.identity(from.length));
     }
 }

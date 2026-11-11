@@ -17,8 +17,9 @@ public final class Gaussian {
     public double[] mean() { return mean.clone(); }
     public SimpleMatrix covariance() { return covariance.copy(); }
 
-    public InformationGaussian toInformation() {
-        SimpleMatrix information = MatrixOps.inverse(covariance);
-        return new InformationGaussian(MatrixOps.vector(information.mult(MatrixOps.column(mean))), information);
+    public static Gaussian fromInformation(double[] vector, SimpleMatrix matrix) {
+        return new InformationGaussian(vector, matrix).toGaussian();
     }
+
+    public InformationGaussian toInformation() { return InformationGaussian.from(this); }
 }

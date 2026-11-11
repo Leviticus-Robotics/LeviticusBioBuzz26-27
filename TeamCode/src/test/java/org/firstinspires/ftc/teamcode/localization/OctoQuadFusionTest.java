@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.localization;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
-import org.firstinspires.ftc.teamcode.fusion.engine.FactorApplicationResult;
 import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;
 import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
@@ -11,12 +10,12 @@ import org.firstinspires.ftc.teamcode.localization.core.RobotState;
 import org.firstinspires.ftc.teamcode.localization.engine.PoseVelocityProcessModel;
 import org.firstinspires.ftc.teamcode.localization.factor.AbsolutePoseFactor;
 import org.firstinspires.ftc.teamcode.localization.factor.MotionDeltaFactor;
-import org.firstinspires.ftc.teamcode.localization.sensor.octoquad.OctoQuadFactorFactory;
+import org.firstinspires.ftc.teamcode.localization.sensor.octoquad.OctoQuadMotionAdapter;
 import org.junit.jupiter.api.Test;
 
 class OctoQuadFusionTest {
     @Test void factoryUsesFirstSampleAsBaselineAndEmitsOneDeltaPerLaterSample() {
-        OctoQuadFactorFactory factory = new OctoQuadFactorFactory(
+        OctoQuadMotionAdapter factory = new OctoQuadMotionAdapter(
                 MatrixOps.diagonal(.1, .1, .1, .2, .2, .2));
         assertNull(factory.stage(new Pose2(5, 6, .2), 0, 0, 0, 1));
         factory.commit();
@@ -32,8 +31,8 @@ class OctoQuadFusionTest {
     }
 
     @Test void rejectedSampleDoesNotAdvanceCommittedDeltaBaseline() {
-        OctoQuadFactorFactory factory =
-                new OctoQuadFactorFactory(MatrixOps.diagonal(.1, .1, .1, .2, .2, .2));
+        OctoQuadMotionAdapter factory =
+                new OctoQuadMotionAdapter(MatrixOps.diagonal(.1, .1, .1, .2, .2, .2));
         assertNull(factory.stage(Pose2.zero(), 0, 0, 0, 1));
         factory.commit();
         assertNotNull(factory.stage(new Pose2(1, 0, 0), 1, 0, 0, 2));
@@ -53,7 +52,7 @@ class OctoQuadFusionTest {
             return normalized;
         },
                 10_000_000_000L);
-        OctoQuadFactorFactory factory = new OctoQuadFactorFactory(
+        OctoQuadMotionAdapter factory = new OctoQuadMotionAdapter(
                 MatrixOps.diagonal(1e-6, 1e-6, 1e-6, 1e-5, 1e-5, 1e-5));
         Pose2 raw0 = new Pose2(20, 30, .4);
         factory.initializeBaseline(raw0, 0);
@@ -61,23 +60,22 @@ class OctoQuadFusionTest {
         MotionDeltaFactor firstDelta = factory.stage(
                 raw0.compose(new Pose2(1, 0, .1)), Math.cos(rawHeading),
                 Math.sin(rawHeading), .1, 1_000_000_000L);
-        assertTrue(engine.commitTick(1_000_000_000L,
-                java.util.Collections.singletonList(firstDelta)).isAccepted());
+        engine.commitTick(1_000_000_000L,
+                java.util.Collections.singletonList(firstDelta));
         factory.commit();
         assertEquals(1, new RobotState(engine.state()).pose().x(), 1e-5);
         assertEquals(Math.cos(.1), new RobotState(engine.state()).vx(), 1e-4);
         assertEquals(Math.sin(.1), new RobotState(engine.state()).vy(), 1e-4);
         assertTrue(engine.submitFactor(new AbsolutePoseFactor(
                 "camera", 1_000_000_000L, new Pose2(10, 5, .2),
-                MatrixOps.diagonal(1e-12, 1e-12, 1e-12))).isAccepted());
+                MatrixOps.diagonal(1e-12, 1e-12, 1e-12))));
         MotionDeltaFactor secondDelta = factory.stage(
                 raw0.compose(new Pose2(2, 0, .1)), Math.cos(rawHeading),
                 Math.sin(rawHeading), 0, 2_000_000_000L);
-        FactorApplicationResult update = engine.commitTick(
+        engine.commitTick(
                 2_000_000_000L,
                 java.util.Collections.singletonList(secondDelta));
         factory.commit();
-        assertTrue(update.isAccepted(), update.reason);
         assertTrue(new RobotState(engine.state()).pose().x() > 10.9,
                 new RobotState(engine.state()).pose().toString());
         assertTrue(new RobotState(engine.state()).pose().x() < 12.1);
@@ -95,9 +93,9 @@ class OctoQuadFusionTest {
                 "octoquad", 0, 1_000_000_000L, new Pose2(1, 0, 0), 1, 0, 0,
                 MatrixOps.diagonal(.01, .01, .01, .01, .01, .01));
 
-        assertTrue(engine.commitTick(1_000_000_000L, java.util.Arrays.asList(
+        engine.commitTick(1_000_000_000L, java.util.Arrays.asList(
                 model.factor(0, 1_000_000_000L, new ControlInput(.5, 0, 0)),
-                octo)).isAccepted());
+                octo));
         assertTrue(new RobotState(engine.state()).pose().x() > 0);
     }
 

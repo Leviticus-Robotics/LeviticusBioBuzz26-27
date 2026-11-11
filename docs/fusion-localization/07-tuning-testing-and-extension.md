@@ -14,7 +14,7 @@ Tune standard deviations from data first, then square them to obtain diagonal va
 
 ## Current configuration values
 
-`FusedLocalizer.Config.defaults()` supplies:
+The fusion fields in `Constants` supply:
 
 - Initial six-state covariance.
 - OctoQuad joint pose-delta and velocity covariance.

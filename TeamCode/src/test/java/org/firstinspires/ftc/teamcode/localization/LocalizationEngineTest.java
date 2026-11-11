@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.Arrays;
 import org.firstinspires.ftc.teamcode.fusion.core.Gaussian;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
-import org.firstinspires.ftc.teamcode.fusion.engine.FactorApplicationResult;
 import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;
 import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
@@ -41,13 +40,13 @@ class LocalizationEngineTest {
     @Test void relativeFactorAdvancesFromCorrectedTrajectory() {
         FusionEngine engine = engine(10_000_000_000L);
         assertTrue(engine.submitFactor(new AbsolutePoseFactor("camera", 1_000_000_000L,
-                new Pose2(10, 0, 0), MatrixOps.diagonal(1e-4, 1e-4, 1e-4))).isAccepted());
+                new Pose2(10, 0, 0), MatrixOps.diagonal(1e-4, 1e-4, 1e-4))));
         tick(engine, 1_000_000_000L, ControlInput.ZERO);
-        assertTrue(engine.commitTick(2_000_000_000L, Arrays.asList(
+        engine.commitTick(2_000_000_000L, Arrays.asList(
                 model().factor(1_000_000_000L, 2_000_000_000L, ControlInput.ZERO),
                 new PoseDeltaFactor(
                         "octo", 1_000_000_000L, 2_000_000_000L,
-                        new Pose2(1, 0, 0), MatrixOps.diagonal(1e-12, 1e-12, 1e-12)))).isAccepted());
+                        new Pose2(1, 0, 0), MatrixOps.diagonal(1e-12, 1e-12, 1e-12))));
         assertEquals(11, state(engine).pose().x(), .02);
     }
 
@@ -75,18 +74,16 @@ class LocalizationEngineTest {
         tick(engine, 4_000_000_000L, ControlInput.ZERO);
         assertEquals(Arrays.asList(2_000_000_000L, 3_000_000_000L, 4_000_000_000L),
                 engine.retainedTickTimestamps());
-        FactorApplicationResult stale = engine.submitFactor(new AbsolutePoseFactor("old", 0,
-                Pose2.zero(), MatrixOps.diagonal(1, 1, 1)));
-        assertFalse(stale.isAccepted());
-        assertTrue(stale.reason.contains("retained tick history"));
+        assertFalse(engine.submitFactor(new AbsolutePoseFactor("old", 0,
+                Pose2.zero(), MatrixOps.diagonal(1, 1, 1))));
     }
 
     @Test void distantFactorsAreFusedWithoutAHiddenStatisticalGate() {
         FusionEngine engine = engine(10_000_000_000L);
         tick(engine, 1_000_000_000L, ControlInput.ZERO);
-        FactorApplicationResult update = engine.submitFactor(new AbsolutePoseFactor("distant", 1_000_000_000L,
+        boolean update = engine.submitFactor(new AbsolutePoseFactor("distant", 1_000_000_000L,
                 new Pose2(100, 0, 0), MatrixOps.diagonal(.01, .01, .01)));
-        assertTrue(update.isAccepted());
+        assertTrue(update);
         tick(engine, 1_000_000_000L, ControlInput.ZERO);
         assertTrue(state(engine).pose().x() > 90);
     }
@@ -100,12 +97,12 @@ class LocalizationEngineTest {
                 MatrixOps.diagonal(.02, .02, .02));
         FusionEngine first = engine(10_000_000_000L);
         FusionEngine second = engine(10_000_000_000L);
-        assertTrue(first.commitTick(1_000_000_000L, Arrays.asList(
+        first.commitTick(1_000_000_000L, Arrays.asList(
                 model().factor(0, 1_000_000_000L, ControlInput.ZERO),
-                relative, absolute)).isAccepted());
-        assertTrue(second.commitTick(1_000_000_000L, Arrays.asList(
+                relative, absolute));
+        second.commitTick(1_000_000_000L, Arrays.asList(
                 absolute, relative,
-                model().factor(0, 1_000_000_000L, ControlInput.ZERO))).isAccepted());
+                model().factor(0, 1_000_000_000L, ControlInput.ZERO)));
 
         assertArrayEquals(first.state().mean(), second.state().mean(), 1e-10);
         assertTrue(first.state().covariance().isIdentical(second.state().covariance(), 1e-10));
@@ -119,6 +116,6 @@ class LocalizationEngineTest {
                         ? java.util.Collections.emptyList()
                         : java.util.Collections.singletonList(
                                 model().factor(engine.timestampNanos(), timestamp, input));
-        assertTrue(engine.commitTick(timestamp, factors).isAccepted());
+        engine.commitTick(timestamp, factors);
     }
 }

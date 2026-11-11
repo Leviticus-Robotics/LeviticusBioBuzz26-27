@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.localization.factor;
 import org.ejml.simple.SimpleMatrix;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
 import org.firstinspires.ftc.teamcode.fusion.factor.RelativeFactor;
+import org.firstinspires.ftc.teamcode.fusion.factor.LinearizedFactor;
 import org.firstinspires.ftc.teamcode.fusion.factor.StateValues;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
 import org.firstinspires.ftc.teamcode.localization.core.RobotState;
@@ -81,14 +82,16 @@ public final class PoseDeltaFactor implements RelativeFactor {
         return new SimpleMatrix[] {fromJacobian, toJacobian};
     }
 
-    @Override public double[] residual(StateValues values) {
+    public double[] residual(StateValues values) {
         return residual(values.state(fromTimestampNanos), values.state(timestampNanos));
     }
 
-    @Override public SimpleMatrix covariance(StateValues values) { return covariance(); }
-
-    @Override public SimpleMatrix[] jacobians(StateValues values) {
+    public SimpleMatrix[] jacobians(StateValues values) {
         return jacobians(values.state(fromTimestampNanos), values.state(timestampNanos));
+    }
+
+    @Override public LinearizedFactor linearize(StateValues values) {
+        return new LinearizedFactor(residual(values), covariance, jacobians(values));
     }
 
     private static Pose2 pose(double[] state) {

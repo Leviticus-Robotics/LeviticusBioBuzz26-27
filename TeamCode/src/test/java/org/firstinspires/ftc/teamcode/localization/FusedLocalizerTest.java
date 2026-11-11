@@ -37,9 +37,8 @@ class FusedLocalizerTest {
                 10_000_000_000L);
     }
 
-    private static FusedLocalizer.Config config() {
-        return FusedLocalizer.Config.defaults().withInitialCovariance(
-                MatrixOps.diagonal(1, 1, 1, 1, 1, 1));
+    private static org.ejml.simple.SimpleMatrix config() {
+        return MatrixOps.diagonal(1, 1, 1, 1, 1, 1);
     }
 
     @Test void adaptsPoseVelocityUpdateResetAndDebugWithInjectedSources() {
@@ -110,7 +109,7 @@ class FusedLocalizerTest {
                 config(),
                 Collections.singletonList(source));
 
-        assertThrows(IllegalStateException.class, localizer::update);
+        assertThrows(IllegalArgumentException.class, localizer::update);
         assertEquals(0, source.commits.get());
         assertEquals(1, source.rollbacks.get());
         assertEquals(0, localizer.engine().timestampNanos());

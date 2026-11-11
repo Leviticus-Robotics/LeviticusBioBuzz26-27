@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.localization.factor;
 import org.ejml.simple.SimpleMatrix;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
 import org.firstinspires.ftc.teamcode.fusion.factor.RelativeFactor;
+import org.firstinspires.ftc.teamcode.fusion.factor.LinearizedFactor;
 import org.firstinspires.ftc.teamcode.fusion.factor.StateValues;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
 import org.firstinspires.ftc.teamcode.localization.core.RobotState;
@@ -51,7 +52,7 @@ public final class MotionDeltaFactor implements RelativeFactor {
     public double omega() { return omega; }
     public SimpleMatrix measurementCovariance() { return covariance.copy(); }
 
-    @Override public double[] residual(StateValues values) {
+    public double[] residual(StateValues values) {
         double[] poseResidual = poseFactor.residual(values);
         double[] previous = values.state(fromTimestampNanos);
         double[] current = values.state(toTimestampNanos);
@@ -68,9 +69,7 @@ public final class MotionDeltaFactor implements RelativeFactor {
         };
     }
 
-    @Override public SimpleMatrix covariance(StateValues values) { return covariance.copy(); }
-
-    @Override public SimpleMatrix[] jacobians(StateValues values) {
+    public SimpleMatrix[] jacobians(StateValues values) {
         SimpleMatrix[] poseJacobians = poseFactor.jacobians(values);
         SimpleMatrix from = new SimpleMatrix(RobotState.DIMENSION, RobotState.DIMENSION);
         SimpleMatrix to = new SimpleMatrix(RobotState.DIMENSION, RobotState.DIMENSION);
@@ -88,5 +87,9 @@ public final class MotionDeltaFactor implements RelativeFactor {
         to.set(RobotState.VY, RobotState.VY, 1);
         to.set(RobotState.OMEGA, RobotState.OMEGA, 1);
         return new SimpleMatrix[] {from, to};
+    }
+
+    @Override public LinearizedFactor linearize(StateValues values) {
+        return new LinearizedFactor(residual(values), covariance, jacobians(values));
     }
 }

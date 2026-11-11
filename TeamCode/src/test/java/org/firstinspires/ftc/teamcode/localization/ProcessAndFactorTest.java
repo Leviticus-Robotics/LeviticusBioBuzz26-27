@@ -81,8 +81,8 @@ class ProcessAndFactorTest {
     private static Gaussian predict(Gaussian prior, ControlInput input, double seconds) {
         long toTimestampNanos = Math.round(seconds*1e9);
         FusionEngine engine = engine(prior);
-        assertTrue(engine.commitTick(toTimestampNanos, java.util.Collections.singletonList(
-                model().factor(0, toTimestampNanos, input))).isAccepted());
+        engine.commitTick(toTimestampNanos, java.util.Collections.singletonList(
+                model().factor(0, toTimestampNanos, input)));
         return engine.state();
     }
 

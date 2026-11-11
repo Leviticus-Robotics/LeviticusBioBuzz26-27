@@ -69,7 +69,7 @@ The `localization` package assigns physical meaning to the state:
 Sensor adapters own hardware- and SDK-specific conversion:
 
 - `OctoQuadFusionSource` polls Pedro's raw OctoQuad localizer.
-- `OctoQuadFactorFactory` converts consecutive integrated poses into local deltas.
+- `OctoQuadMotionAdapter` converts consecutive integrated poses into local deltas.
 - `AprilTagFrameProcessor` converts eligible detections into one absolute pose factor per camera frame.
 
 The fusion engine never polls hardware and never imports either sensor SDK.

@@ -3,22 +3,17 @@ package org.firstinspires.ftc.teamcode.fusion.factor;
 import org.ejml.simple.SimpleMatrix;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
 
-/** Immutable residual, covariance, and analytic Jacobians supplied by a factor. */
+/** One factor evaluated into a local linear Gaussian constraint. */
 public final class LinearizedFactor {
-    public final long[] timestamps;
     public final double[] residual;
     public final SimpleMatrix covariance;
     public final SimpleMatrix[] jacobians;
 
-    public LinearizedFactor(long[] timestamps, double[] residual, SimpleMatrix covariance,
-                            SimpleMatrix[] jacobians) {
-        if (timestamps == null || timestamps.length == 0) {
-            throw new IllegalArgumentException("factor has no timestamps");
+    public LinearizedFactor(double[] residual, SimpleMatrix covariance,
+                            SimpleMatrix... jacobians) {
+        if (jacobians == null || jacobians.length == 0) {
+            throw new IllegalArgumentException("factor has no Jacobians");
         }
-        if (jacobians == null || jacobians.length != timestamps.length) {
-            throw new IllegalArgumentException("one Jacobian is required per timestamp");
-        }
-        this.timestamps = timestamps.clone();
         this.residual = MatrixOps.copyVector(residual, "factor residual");
         this.covariance = MatrixOps.requirePositiveDefinite(
                 covariance, residual.length, "factor covariance");
@@ -29,5 +24,18 @@ public final class LinearizedFactor {
                 throw new IllegalArgumentException("Jacobian residual dimension does not match");
             }
         }
+    }
+
+    /** Horizontally concatenates the state Jacobian blocks. */
+    public SimpleMatrix observation() {
+        int columns = 0;
+        for (SimpleMatrix jacobian : jacobians) columns += jacobian.numCols();
+        SimpleMatrix result = new SimpleMatrix(residual.length, columns);
+        int column = 0;
+        for (SimpleMatrix jacobian : jacobians) {
+            result.insertIntoThis(0, column, jacobian);
+            column += jacobian.numCols();
+        }
+        return result;
     }
 }

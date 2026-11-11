@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.localization.factor;
 import org.ejml.simple.SimpleMatrix;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
 import org.firstinspires.ftc.teamcode.fusion.factor.AbsoluteFactor;
+import org.firstinspires.ftc.teamcode.fusion.factor.LinearizedFactor;
 import org.firstinspires.ftc.teamcode.fusion.factor.StateValues;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
 import org.firstinspires.ftc.teamcode.localization.core.RobotState;
@@ -50,17 +51,11 @@ public final class AbsolutePoseFactor implements AbsoluteFactor {
         return result;
     }
 
-    @Override public double[] residual(StateValues values) {
-        return residual(values.state(timestampNanos));
-    }
-
-    @Override public SimpleMatrix covariance(StateValues values) { return covariance(); }
-
-    @Override public SimpleMatrix[] jacobians(StateValues values) {
+    @Override public LinearizedFactor linearize(StateValues values) {
         double[] state = values.state(timestampNanos);
         if (state.length != RobotState.DIMENSION) {
             throw new IllegalArgumentException("predicted state must have 6 dimensions");
         }
-        return new SimpleMatrix[] {jacobian()};
+        return new LinearizedFactor(residual(state), covariance, jacobian());
     }
 }

@@ -69,7 +69,7 @@ class AprilTagFusionTest {
                 model.factor(0, 2_000_000_000L, ControlInput.ZERO)));
         AbsolutePoseFactor factor = processor(1).combineFrame(1_000_000_000L,
                 Arrays.asList(observation(new Pose2(2, 0, Math.PI - .01))));
-        assertTrue(engine.submitFactor(factor).isAccepted());
+        assertTrue(engine.submitFactor(factor));
         engine.commitTick(2_000_000_000L, java.util.Collections.emptyList());
         assertTrue(Math.abs(new RobotState(engine.state()).pose().heading()) > 2);
     }

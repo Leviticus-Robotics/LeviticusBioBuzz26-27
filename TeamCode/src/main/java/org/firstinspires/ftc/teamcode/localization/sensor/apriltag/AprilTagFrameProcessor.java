@@ -10,7 +10,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.teamcode.fusion.core.Gaussian;
-import org.firstinspires.ftc.teamcode.fusion.core.InformationGaussian;
+import org.firstinspires.ftc.teamcode.fusion.core.GaussianFusion;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
 import org.firstinspires.ftc.teamcode.localization.factor.AbsolutePoseFactor;
@@ -78,43 +78,20 @@ public final class AprilTagFrameProcessor {
                                            List<AprilTagPoseObservation> observations) {
         if (observations == null || observations.isEmpty()) return null;
         Pose2 consensusReference = selectConsensusReference(observations);
-        List<double[]> acceptedMeans = new ArrayList<>();
-        List<SimpleMatrix> acceptedInformation = new ArrayList<>();
+        List<Gaussian> accepted = new ArrayList<>();
         for (AprilTagPoseObservation observation : observations) {
-            Pose2 pose = observation.robotFieldPose();
-            SimpleMatrix observationCovariance = observation.covariance();
-            double unwrappedHeading = consensusReference.heading()
-                    + Pose2.angularResidual(pose.heading(), consensusReference.heading());
-            double[] mean = new double[] {pose.x(), pose.y(), unwrappedHeading};
-            SimpleMatrix residual = MatrixOps.column(new double[] {
-                    pose.x() - consensusReference.x(), pose.y() - consensusReference.y(),
-                    Pose2.angularResidual(pose.heading(), consensusReference.heading())
-            });
-            SimpleMatrix innovationCovariance = observationCovariance.plus(sharedCameraCovarianceFloor);
-            double distance = residual.transpose().mult(MatrixOps.solve(innovationCovariance, residual)).get(0);
-            if (distance <= consensusGateSquared) {
-                acceptedMeans.add(mean);
-                acceptedInformation.add(new Gaussian(mean, observationCovariance).toInformation().informationMatrix());
-            }
+            Gaussian gaussian = observation.gaussianNear(consensusReference);
+            SimpleMatrix residual = MatrixOps.column(gaussian.mean()).minus(
+                    MatrixOps.column(consensusReference.toArray()));
+            SimpleMatrix innovation = gaussian.covariance().plus(sharedCameraCovarianceFloor);
+            double distance = residual.transpose().mult(
+                    MatrixOps.solve(innovation, residual)).get(0);
+            if (distance <= consensusGateSquared) accepted.add(gaussian);
         }
-        if (acceptedMeans.isEmpty()) return null;
-        int count = acceptedMeans.size();
-        SimpleMatrix averageInformation = new SimpleMatrix(3, 3);
-        SimpleMatrix averageInformationVector = new SimpleMatrix(3, 1);
-        for (int i = 0; i < count; i++) {
-            SimpleMatrix information = acceptedInformation.get(i);
-            averageInformation = averageInformation.plus(information.scale(1.0 / count));
-            averageInformationVector = averageInformationVector.plus(
-                    information.mult(MatrixOps.column(acceptedMeans.get(i))).scale(1.0 / count));
-        }
-        Gaussian combined = new InformationGaussian(
-                MatrixOps.vector(averageInformationVector), averageInformation).toGaussian();
-        SimpleMatrix disagreement = new SimpleMatrix(3, 3);
-        SimpleMatrix combinedMean = MatrixOps.column(combined.mean());
-        for (double[] mean : acceptedMeans) {
-            SimpleMatrix residual = MatrixOps.column(mean).minus(combinedMean);
-            disagreement = disagreement.plus(residual.mult(residual.transpose()).scale(1.0 / count));
-        }
+        if (accepted.isEmpty()) return null;
+        Gaussian combined = GaussianFusion.informationAverage(accepted);
+        SimpleMatrix disagreement = GaussianFusion.disagreementCovariance(
+                accepted, combined.mean());
         SimpleMatrix covariance = combined.covariance().plus(sharedCameraCovarianceFloor)
                 .plus(disagreement.scale(disagreementInflation));
         double[] mean = combined.mean();

@@ -5,7 +5,7 @@
 `Constants.createLocalizer(hardwareMap, drivetrain)` is the localization composition root. It creates and connects:
 
 ```text
-FusedLocalizer.Config + PoseVelocityProcessModel.Config
+Constants + PoseVelocityProcessModel.Config
       │
       ├── initial RobotState
       ├── PoseVelocityProcessModel

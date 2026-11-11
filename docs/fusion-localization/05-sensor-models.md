@@ -14,7 +14,7 @@ The implementation therefore compares consecutive raw poses:
 \Delta O_k=O_{k-1}^{-1}\oplus O_k.
 \]
 
-`OctoQuadFactorFactory` combines this delta with the OctoQuad-reported velocity in one generic `MotionDeltaFactor` connecting the two sample ticks. Translational velocity is converted from the raw odometry frame to robot-local coordinates so it remains valid after a global AprilTag heading correction. The factor says:
+`OctoQuadMotionAdapter` combines this delta with the OctoQuad-reported velocity in one generic `MotionDeltaFactor` connecting the two sample ticks. Translational velocity is converted from the raw odometry frame to robot-local coordinates so it remains valid after a global AprilTag heading correction. The factor says:
 
 > Whatever the globally corrected pose was previously, the robot moved locally by this measured delta.
 
@@ -27,7 +27,7 @@ After an AprilTag correction, future OctoQuad deltas continue from the corrected
 1. Calls the raw Pedro `OctoQuadLocalizer.update()` exactly once.
 2. Reads its current pose and velocity from `MotionState`.
 3. Converts the pose to localization-owned `Pose2`.
-4. Passes the complete motion sample to `OctoQuadFactorFactory` with the loop timestamp.
+4. Passes the complete motion sample to `OctoQuadMotionAdapter` with the loop timestamp.
 
 Construction and reset synchronously establish a pose baseline at the engine timestamp. Each later strictly newer sample produces one motion factor.
 
@@ -79,6 +79,8 @@ The processor instead:
 6. Adds empirical disagreement covariance scaled by `disagreementInflation`.
 
 Therefore, more agreeing tags can stabilize the frame estimate without automatically dividing covariance by the tag count.
+
+The reusable mathematics lives in `GaussianFusion.informationAverage()` and `GaussianFusion.disagreementCovariance()`. The frame processor retains only tag eligibility, heading-chart selection, consensus gating, and camera-specific covariance policy.
 
 The consensus gate is sensor preprocessing, not a hidden global fusion-engine outlier gate. Once an `AbsolutePoseFactor` reaches `FusionEngine`, the engine applies it according to its declared covariance even if it is far from the current estimate.
 

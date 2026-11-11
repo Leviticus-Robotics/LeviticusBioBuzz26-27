@@ -7,14 +7,12 @@ Every `Factor` provides:
 ```java
 String source();
 long[] timestamps();
-double[] residual(StateValues values);
-SimpleMatrix covariance(StateValues values);
-SimpleMatrix[] jacobians(StateValues values);
+LinearizedFactor linearize(StateValues values);
 ```
 
 This is deliberately behavioral. The engine does not use `instanceof` to decide the mathematics of an absolute or relative sensor. It asks the factor to evaluate itself against timestamped state values.
 
-`Factor.linearize()` packages those results into an immutable `LinearizedFactor` after validating dimensions and covariance.
+`LinearizedFactor` keeps the residual, covariance, and Jacobian blocks from the same evaluation point together and validates them once.
 
 ## Factor arity
 

@@ -11,9 +11,9 @@ import org.firstinspires.ftc.teamcode.fusion.core.Gaussian;
 import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
 import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;
 import org.firstinspires.ftc.teamcode.fusion.engine.ProcessModel;
-import org.firstinspires.ftc.teamcode.fusion.engine.StateNormalizer;
 import org.firstinspires.ftc.teamcode.fusion.factor.RelativeFactor;
 import org.firstinspires.ftc.teamcode.fusion.factor.Factor;
+import org.firstinspires.ftc.teamcode.fusion.factor.LinearizedFactor;
 import org.firstinspires.ftc.teamcode.fusion.factor.StateValues;
 import org.junit.jupiter.api.Test;
 
@@ -22,12 +22,12 @@ class FusionEngineTest {
 
     @Test void engineIsGenericOverStateMeaningAndFactorType() {
         FusionEngine engine = engine();
-        assertTrue(engine.commitTick(SECOND, Arrays.asList(
-                model().factor(0, SECOND, 2.0), new DeltaFactor(0, SECOND, 3))).isAccepted());
+        engine.commitTick(SECOND, Arrays.asList(
+                model().factor(0, SECOND, 2.0), new DeltaFactor(0, SECOND, 3)));
         assertEquals(3, engine.state().mean(0), .01);
 
-        assertTrue(engine.submitFactor(new PositionFactor(SECOND, 5)).isAccepted());
-        assertTrue(engine.commitTick(SECOND, Collections.emptyList()).isAccepted());
+        assertTrue(engine.submitFactor(new PositionFactor(SECOND, 5)));
+        engine.commitTick(SECOND, Collections.emptyList());
         assertTrue(engine.state().mean(0) > 4.9);
     }
 
@@ -61,10 +61,11 @@ class FusionEngineTest {
 
     @Test void aNewTickRequiresOrdinaryFactorsThatMakeItsStateObservable() {
         FusionEngine engine = engine();
-        assertTrue(!engine.commitTick(SECOND, Collections.emptyList()).isAccepted());
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> engine.commitTick(SECOND, Collections.emptyList()));
         org.firstinspires.ftc.teamcode.fusion.factor.ProcessFactor<Double> process =
                 model().factor(0, SECOND, 1.0);
-        assertTrue(engine.commitTick(SECOND, Collections.singletonList(process)).isAccepted());
+        engine.commitTick(SECOND, Collections.singletonList(process));
     }
 
     @Test void independentSameTickFactorsAreNotAutomaticallyDeduplicated() {
@@ -94,7 +95,7 @@ class FusionEngineTest {
 
     private static FusionEngine engine() {
         return new FusionEngine(new Gaussian(new double[] {0, 0}, MatrixOps.diagonal(1, 1)),
-                0, StateNormalizer.IDENTITY, 10*SECOND);
+                0, state -> state.clone(), 10*SECOND);
     }
 
     private static final class PositionFactor implements Factor {
@@ -108,14 +109,11 @@ class FusionEngineTest {
 
         @Override public String source() { return "position"; }
         @Override public long[] timestamps() { return new long[] {timestamp}; }
-        @Override public double[] residual(StateValues values) {
-            return new double[] {values.state(timestamp)[0] - position};
-        }
-        @Override public SimpleMatrix covariance(StateValues values) {
-            return MatrixOps.diagonal(1e-6);
-        }
-        @Override public SimpleMatrix[] jacobians(StateValues values) {
-            return new SimpleMatrix[] {new SimpleMatrix(new double[][] {{1, 0}})};
+        @Override public LinearizedFactor linearize(StateValues values) {
+            return new LinearizedFactor(
+                    new double[] {values.state(timestamp)[0] - position},
+                    MatrixOps.diagonal(1e-6),
+                    new SimpleMatrix(new double[][] {{1, 0}}));
         }
     }
 
@@ -133,17 +131,12 @@ class FusionEngineTest {
         @Override public String source() { return "delta"; }
         @Override public long fromTimestampNanos() { return from; }
         @Override public long toTimestampNanos() { return to; }
-        @Override public double[] residual(StateValues values) {
-            return new double[] {values.state(to)[0] - values.state(from)[0] - delta};
-        }
-        @Override public SimpleMatrix covariance(StateValues values) {
-            return MatrixOps.diagonal(1e-6);
-        }
-        @Override public SimpleMatrix[] jacobians(StateValues values) {
-            return new SimpleMatrix[] {
+        @Override public LinearizedFactor linearize(StateValues values) {
+            return new LinearizedFactor(
+                    new double[] {values.state(to)[0] - values.state(from)[0] - delta},
+                    MatrixOps.diagonal(1e-6),
                     new SimpleMatrix(new double[][] {{-1, 0}}),
-                    new SimpleMatrix(new double[][] {{1, 0}})
-            };
+                    new SimpleMatrix(new double[][] {{1, 0}}));
         }
     }
 }

@@ -24,6 +24,15 @@ This trial-and-publish behavior prevents a rejected factor from partially mutati
 
 An absolute factor declares one timestamp. The engine attaches it to the nearest retained tick. The timestamp must fall within the retained time range.
 
+Nearest-tick attachment is an intentional timestamp-quantization rule, not interpolation:
+
+- The engine creates states only at robot-loop timestamps.
+- A one-state measurement captured between two retained ticks is assigned to whichever tick is temporally closer.
+- An exactly equidistant measurement is assigned to the earlier tick.
+- A measurement outside the retained timestamp range is rejected rather than extrapolated.
+
+Consequently, the timestamp error is at most half of the surrounding tick interval. With a regular 50 Hz loop, that is at most approximately 10 ms. An irregular loop has the same rule but a correspondingly larger or smaller bound for its local interval. The measurement is treated as having occurred at the selected tick, so its covariance should include any timing uncertainty that is significant for the robot's motion.
+
 A relative factor declares two timestamps. Both timestamps must exactly match retained ticks, and the destination must immediately follow the source. Arbitrary long-range relative factors are rejected.
 
 These rules are why automatic sensors are sampled once per robot loop: normal relative observations naturally span consecutive ticks.
@@ -43,7 +52,7 @@ It does not replay the retained history. The untouched tick prefix is shared, an
 
 ## Delayed measurements
 
-`submitFactor()` queues a timestamped observation. This is how an AprilTag result can arrive asynchronously after its image was captured.
+`submitFactor()` queues a timestamped observation and returns `false` only when it is already older than retained history. Invalid factors throw. This is how an AprilTag result can arrive asynchronously after its image was captured.
 
 Suppose the current state is at \(t_5\), and a factor captured at \(t_3\) arrives:
 
@@ -116,7 +125,7 @@ These are desktop JVM results, not guaranteed Control Hub timings.
 
 ## Diagnostics
 
-`FusionDiagnostics` exposes:
+`FusionEngine.Diagnostics` exposes:
 
 - Current state timestamp.
 - Retained tick/factor count.

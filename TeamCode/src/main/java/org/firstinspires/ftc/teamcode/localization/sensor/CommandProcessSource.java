@@ -10,6 +10,7 @@ public final class CommandProcessSource implements AutomaticFusionSource,
         EventManager.Handler<ControlInput> {
     private final ProcessModel<ControlInput> model;
     private ControlInput activeInput = ControlInput.ZERO;
+    private boolean enabled = true;
 
     public CommandProcessSource(ProcessModel<ControlInput> model) {
         if (model == null) throw new IllegalArgumentException("process model is null");
@@ -21,6 +22,8 @@ public final class CommandProcessSource implements AutomaticFusionSource,
     }
 
     public ControlInput activeInput() { return activeInput; }
+    public boolean enabled() { return enabled; }
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
 
     @Override public EventManager.EventHandled<ControlInput> handleEvent(ControlInput input) {
         if (input == null) throw new IllegalArgumentException("control input is null");
@@ -30,7 +33,7 @@ public final class CommandProcessSource implements AutomaticFusionSource,
 
     @Override public ProcessFactor<ControlInput> poll(long fromTimestampNanos,
                                                        long tickTimestampNanos) {
-        if (tickTimestampNanos <= fromTimestampNanos) return null;
+        if (!enabled || tickTimestampNanos <= fromTimestampNanos) return null;
         return model.factor(fromTimestampNanos, tickTimestampNanos, activeInput);
     }
 

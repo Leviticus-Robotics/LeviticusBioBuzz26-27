@@ -20,6 +20,7 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
 import org.firstinspires.ftc.teamcode.NanoClock;
 import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;
+import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
 import org.firstinspires.ftc.teamcode.localization.core.Pose2;
 import org.firstinspires.ftc.teamcode.localization.core.RobotState;
 import org.firstinspires.ftc.teamcode.localization.engine.PoseVelocityProcessModel;
@@ -28,7 +29,7 @@ import org.firstinspires.ftc.teamcode.localization.pedro.FusionMecanumDrivetrain
 import org.firstinspires.ftc.teamcode.localization.sensor.AutomaticFusionSource;
 import org.firstinspires.ftc.teamcode.localization.sensor.CommandProcessSource;
 import org.firstinspires.ftc.teamcode.localization.sensor.apriltag.AprilTagFrameProcessor;
-import org.firstinspires.ftc.teamcode.localization.sensor.octoquad.OctoQuadFactorFactory;
+import org.firstinspires.ftc.teamcode.localization.sensor.octoquad.OctoQuadMotionAdapter;
 import org.firstinspires.ftc.teamcode.localization.sensor.octoquad.OctoQuadFusionSource;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 
@@ -43,8 +44,20 @@ public class Constants {
     public static boolean useFusedLocalization = false;
     public static PoseVelocityProcessModel.Config fusionProcessModelConfig =
             PoseVelocityProcessModel.Config.defaults();
-    public static FusedLocalizer.Config fusedLocalizerConfig =
-            FusedLocalizer.Config.defaults();
+    public static org.ejml.simple.SimpleMatrix fusionInitialCovariance =
+            MatrixOps.diagonal(4, 4, .25, 25, 25, 4);
+    // Per-tick variance for x, y, heading, vx, vy, omega. Corresponding standard
+    // deviations are .05 in, .05 in, .01 rad, .5 in/s, .5 in/s, and .1 rad/s.
+    public static org.ejml.simple.SimpleMatrix octoQuadMotionCovariance =
+            MatrixOps.diagonal(.0025, .0025, .0001, .25, .25, .01);
+    public static org.ejml.simple.SimpleMatrix aprilTagCovariance =
+            MatrixOps.diagonal(2.25, 2.25, .04);
+    public static org.ejml.simple.SimpleMatrix sharedCameraCovarianceFloor =
+            MatrixOps.diagonal(.25, .25, .01);
+    public static double aprilTagConsensusGateSquared = 16.27;
+    public static double aprilTagDisagreementInflation = 1.0;
+    public static Pose2 fieldConventionTransform = Pose2.zero();
+    public static long fusionHistoryNanos = FusedLocalizer.DEFAULT_HISTORY_NANOS;
     public static int[] stationaryLocalizationTagIds = new int[0];
     public static MecanumConfig driveConfig = new MecanumConfig(
         c -> {
@@ -134,13 +147,24 @@ public class Constants {
             HardwareMap hardwareMap, Drivetrain drivetrain) {
         if (!useFusedLocalization) return createLocalizer(hardwareMap);
 
-        PoseVelocityProcessModel processModel =
-                new PoseVelocityProcessModel(fusionProcessModelConfig);
-        CommandProcessSource processSource = new CommandProcessSource(processModel);
+        return createFusedLocalizer(hardwareMap, drivetrain, createProcessSource());
+    }
+
+    public static CommandProcessSource createProcessSource() {
+        return new CommandProcessSource(new PoseVelocityProcessModel(fusionProcessModelConfig));
+    }
+
+    /** Constructs fused localization while exposing its process source for diagnostic controls. */
+    public static MercurialLocalizer createFusedLocalizer(
+            HardwareMap hardwareMap, Drivetrain drivetrain,
+            CommandProcessSource processSource) {
+        if (hardwareMap == null) throw new IllegalArgumentException("hardware map is null");
+        if (drivetrain == null) throw new IllegalArgumentException("drivetrain is null");
+        if (processSource == null) throw new IllegalArgumentException("process source is null");
         OctoQuadFusionSource octoQuadSource = new OctoQuadFusionSource(
                 new OctoQuadLocalizer(hardwareMap, localizerConfig),
-                new OctoQuadFactorFactory(
-                        fusedLocalizerConfig.octoQuadMotionCovariance()));
+                new OctoQuadMotionAdapter(
+                        octoQuadMotionCovariance));
         drivetrain.addHandler(processSource);
         return new MercurialLocalizer(createLocalizer(
                 Arrays.asList(processSource, octoQuadSource)));
@@ -152,21 +176,21 @@ public class Constants {
         NanoClock clock = NanoClock.SYSTEM;
         long now = clock.now();
         RobotState initial = RobotState.create(Pose2.zero(), 0, 0, 0,
-                fusedLocalizerConfig.initialCovariance());
+                fusionInitialCovariance);
         FusionEngine engine = new FusionEngine(
                 initial.gaussian(), now, RobotState::normalize,
-                fusedLocalizerConfig.historyNanos());
-        return new FusedLocalizer(engine, clock, fusedLocalizerConfig, sources);
+                fusionHistoryNanos);
+        return new FusedLocalizer(engine, clock, fusionInitialCovariance, sources);
     }
 
     public static AprilTagFrameProcessor createAprilTagProcessor() {
         return new AprilTagFrameProcessor(
                 Constants::isStationaryLocalizationTag,
-                fusedLocalizerConfig.aprilTagCovariance(),
-                fusedLocalizerConfig.sharedCameraCovarianceFloor(),
-                fusedLocalizerConfig.aprilTagConsensusGateSquared(),
-                fusedLocalizerConfig.aprilTagDisagreementInflation(),
-                fusedLocalizerConfig.fieldConventionTransform());
+                aprilTagCovariance,
+                sharedCameraCovarianceFloor,
+                aprilTagConsensusGateSquared,
+                aprilTagDisagreementInflation,
+                fieldConventionTransform);
     }
 
     /** Only explicitly configured stationary custom/test tags may anchor field localization. */
