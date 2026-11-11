@@ -72,7 +72,7 @@ public class RobotCombined {
     public RobotCombined(Context ctx){
         poseTelemetry = ctx.telemetry().addData("Localizer Pose: ", "unknown");
         drivetrain = new Drivetrain(ctx);
-        localizer = Constants.createLocalizer(ctx.hardwareMap(), drivetrain);
+        localizer = Constants.createLocalizer(ctx.hardwareMap(), drivetrain.getInnerDrivetrain());
         if (Constants.useFusedLocalization) {
             fusedLocalizer = (FusedLocalizer) localizer.localizer();
             aprilTagProcessor = Constants.createAprilTagProcessor();

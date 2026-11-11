@@ -1,6 +1,8 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.config.Config;
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.pedropathing.math.Pose;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -30,27 +32,32 @@ public final class LocalizationDiagnostics {
 
     public static RegisterableProgram diagnostic(Pose startPose) {
         return MercurialFTC.teleop(ctx -> {
+            Telemetry telemetry = new MultipleTelemetry(
+                    ctx.telemetry(), FtcDashboard.getInstance().getTelemetry());
+            telemetry.setAutoClear(false);
+            ctx.telemetry(telemetry);
+
             Drivetrain drivetrain = new Drivetrain(ctx);
             CommandProcessSource processSource = Constants.createProcessSource();
             MercurialLocalizer localizer = Constants.createFusedLocalizer(
-                    ctx.hardwareMap(), drivetrain, processSource);
+                    ctx.hardwareMap(), drivetrain.getInnerDrivetrain(), processSource);
             FusedLocalizer fused = (FusedLocalizer) localizer.localizer();
             localizer.setPose(startPose);
 
             localizer.addHandler(EventManager.forwardTo(
                     drivetrain, drivetrain::sendMotionState));
 
-            Telemetry.Item modeTelemetry = ctx.telemetry().addData(
+            Telemetry.Item modeTelemetry = telemetry.addData(
                     "Localization/Mode", modeName(processSource));
-            Telemetry.Item fusedTelemetry = ctx.telemetry().addData(
+            Telemetry.Item fusedTelemetry = telemetry.addData(
                     "Localization/Fused", "waiting");
-            Telemetry.Item velocityTelemetry = ctx.telemetry().addData(
+            Telemetry.Item velocityTelemetry = telemetry.addData(
                     "Localization/Velocity", "waiting");
-            Telemetry.Item covarianceTelemetry = ctx.telemetry().addData(
+            Telemetry.Item covarianceTelemetry = telemetry.addData(
                     "Localization/Covariance diagonal", "waiting");
-            Telemetry.Item decisionTelemetry = ctx.telemetry().addData(
+            Telemetry.Item decisionTelemetry = telemetry.addData(
                     "Localization/Last decision", "waiting");
-            ctx.telemetry().addData("Localization/Controls",
+            telemetry.addData("Localization/Controls",
                     "A: toggle process, LB: field/robot centric, RB: slow");
 
             localizer.addHandler(event -> {

@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.subsystems;
 
 import androidx.annotation.NonNull;
 
-import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.ManualDrive;
 import com.pedropathing.localization.MotionState;
@@ -14,7 +13,6 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.Constants;
 import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusionMecanumDrivetrain;
-import org.jetbrains.annotations.NotNull;
 
 import dev.frozenmilk.dairy.mercurial.continuations.Continuation;
 import dev.frozenmilk.dairy.mercurial.continuations.Continuations;
@@ -23,8 +21,6 @@ import dev.frozenmilk.dairy.mercurial.ftc.Context;
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
 import dev.frozenmilk.dairy.mercurial.processes.Channel;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
-import dev.frozenmilk.dairy.mercurial.processes.EventManager.EventHandled;
-import dev.frozenmilk.dairy.mercurial.processes.StateMachine;
 import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 import dev.frozenmilk.dairy.mercurial.processes.Timer;
 import kotlin.time.TimeMark;
@@ -38,7 +34,7 @@ import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.express
 public class Drivetrain extends SwitchedStateMachine {
     //check Mercuiral GitHub, most of the code the same, added timeouts for follow paths
     private final MercurialFollower follower;
-    private final FusionMecanumDrivetrain appliedInputEvents;
+    private final FusionMecanumDrivetrain innerDrivetrain;
     private Channel<MotionState> motionStates = linkedSingleChannel();//handle localization input
     private Channel<DrivePowers> drivePowers = linkedSingleChannel();//handle drive inputs
     //linked single channel so that if the state machine stops, the channel closes automatically
@@ -54,7 +50,7 @@ public class Drivetrain extends SwitchedStateMachine {
 
     public Drivetrain(Context ctx, FusionMecanumDrivetrain drivetrain){
         if (drivetrain == null) throw new IllegalArgumentException("drivetrain is null");
-        appliedInputEvents = drivetrain;
+        innerDrivetrain = drivetrain;
         follower = Constants.createFollower(drivetrain);
         stateTelemetry = ctx.telemetry().addData("Drivetrain/State", "unknown");//can't use normal telemetry
         //enter idle mode when start
@@ -88,6 +84,9 @@ public class Drivetrain extends SwitchedStateMachine {
 
     }
 
+    public FusionMecanumDrivetrain getInnerDrivetrain() {
+        return innerDrivetrain;
+    }
 
     private Mode holdPoseMode(TimeMark timeMark, Pose pose){
         return mode(self -> {
@@ -233,7 +232,7 @@ public class Drivetrain extends SwitchedStateMachine {
 
     /** Receives the commands actually applied by Pedro after drivetrain scaling. */
     public void addHandler(EventManager.Handler<ControlInput> handler) {
-        appliedInputEvents.addHandler(handler);
+        innerDrivetrain.addHandler(handler);
     }
 
     public void fieldCentric() {

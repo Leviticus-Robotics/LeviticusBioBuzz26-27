@@ -144,7 +144,7 @@ public class Constants {
 
     /** Constructs and wires the configured localization implementation. */
     public static MercurialLocalizer createLocalizer(
-            HardwareMap hardwareMap, Drivetrain drivetrain) {
+            HardwareMap hardwareMap, FusionMecanumDrivetrain drivetrain) {
         if (!useFusedLocalization) return createLocalizer(hardwareMap);
 
         return createFusedLocalizer(hardwareMap, drivetrain, createProcessSource());
@@ -156,7 +156,7 @@ public class Constants {
 
     /** Constructs fused localization while exposing its process source for diagnostic controls. */
     public static MercurialLocalizer createFusedLocalizer(
-            HardwareMap hardwareMap, Drivetrain drivetrain,
+            HardwareMap hardwareMap, FusionMecanumDrivetrain drivetrain,
             CommandProcessSource processSource) {
         if (hardwareMap == null) throw new IllegalArgumentException("hardware map is null");
         if (drivetrain == null) throw new IllegalArgumentException("drivetrain is null");
