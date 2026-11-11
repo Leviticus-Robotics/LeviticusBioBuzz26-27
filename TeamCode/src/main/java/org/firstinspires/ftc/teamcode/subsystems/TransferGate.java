@@ -22,10 +22,10 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 public class TransferGate extends SwitchedStateMachine {
     ServoEx servo;
     Telemetry.Item stateTelemetry;
-    Mode active;
-    Mode inactive;
-    public static double INACTIVE_POSITION = 0.5;
-    public static double ACTIVE_POSITION = 0.8;
+    Mode closed;
+    Mode open;
+    public static double OPEN_POSITION = 0.5;
+    public static double CLOSED_POSITION = 0.8;
     public static boolean INVERTED = false;
 
     public TransferGate(Context ctx){
@@ -36,29 +36,29 @@ public class TransferGate extends SwitchedStateMachine {
 
         stateTelemetry = ctx.telemetry().addData("TransferGate/State", "unknown");
         //start from this mode
-        inactive = entranceMode(from -> {
+        open = entranceMode(from -> {
             stateTelemetry.setValue("inactive");
-            servo.set(INACTIVE_POSITION);
+            servo.set(OPEN_POSITION);
         });
 
-        active = mode(self -> {
+        closed = mode(self -> {
             stateTelemetry.setValue("active");
-            servo.set(ACTIVE_POSITION);
+            servo.set(CLOSED_POSITION);
             return self;
         });
     }
     @NonNull
     @Override
     protected Mode init(){
-        return inactive;
+        return closed;
     }
 
-    public void setActive(){
-        switchTo(active);
+    public void setOpen(){
+        switchTo(open);
     }
 
-    public void setInactive(){
-        switchTo(inactive);
+    public void setClosed(){
+        switchTo(closed);
     }
 
     //Returns previous set position (not current servo position) b/c assumes no encoder attached

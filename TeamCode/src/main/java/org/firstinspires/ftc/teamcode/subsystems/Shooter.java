@@ -10,6 +10,7 @@ import com.pedropathing.math.Vector2D;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.seattlesolvers.solverslib.hardware.motors.Motor;
 import com.seattlesolvers.solverslib.hardware.motors.MotorGroup;
+import com.seattlesolvers.solverslib.hardware.servos.ServoEx;
 import com.seattlesolvers.solverslib.util.InterpLUT;
 import com.seattlesolvers.solverslib.util.MathUtils;
 
@@ -38,11 +39,15 @@ public class Shooter extends SwitchedStateMachine {
     MotorGroup motorGroup;
     public MotorEx shooterLeft; // motor wire is left
     public MotorEx shooterRight; // motor wire is right
+    ServoEx hoodServo;
     Channel<MotionState> motionStates = linkedSingleChannel();
     public static double[] pidCoefficients = new double[] {0.003, 0.0, 0.0};
     public static double[] feedforwardCoefficients = new double[]{0.0291871, 0.000355203, 0};
     public static boolean usePIDCoefficients = true;
     public static boolean useFeedforwardCoefficients = true;
+    public static boolean HOOD_SERVO_INVERTED = false;
+    public static double HOOD_DEFAULT = 0.5;
+
 //    public static boolean DIRECTION_REVERSE = false;
 
     public static Pose AIM_BLUE_CLOSE = new Pose(61, 55);
@@ -50,7 +55,9 @@ public class Shooter extends SwitchedStateMachine {
     public static Pose AIM_RED_CLOSE = new Pose(141.5 - 61, 55);
     public static Pose AIM_RED_FAR = new Pose(141.5 - 61, 67);
     public double currentVoltage;
-    private double currentTargetVelocity;
+    private double currentTargetVelocity;//velocity that is currently being sent to the motors
+    private double shootingTargetVelocity;//desired velocity for shooting (not default velocity)
+    boolean useDefaultVelocity = true; //set it to true initally
     private Telemetry.Item stateTelemetry;
     Mode off;
     AimCalculator aimCalculator;
@@ -60,6 +67,7 @@ public class Shooter extends SwitchedStateMachine {
     //Express Constants in terms of lines (array of 4): (m1, b1, m2, b2)
     //This is for close side, far side is just the opposite but uses the same constants
     public static double[] WITHIN_SHOOTING_RANGE = new double[]{1, 10, -1, 154};
+    public static double DEFAULT_VELOCITY = 500; // ticks/sec -> this is the velocity the shooter will go to when we don't need to shoot
     public Shooter(Context ctx){
         stateTelemetry = ctx.telemetry().addData("Shooter/State", "unknown");
         aimCalculator = new AimCalculator();
@@ -69,6 +77,8 @@ public class Shooter extends SwitchedStateMachine {
         shooterLeft.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooterRight.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooterRight.setInverted(true);//need to invert one of them first
+        hoodServo = new ServoEx(ctx.hardwareMap(), ConfigNames.hoodServo);
+        hoodServo.setInverted(HOOD_SERVO_INVERTED);
 
         motorGroup = new MotorGroup(shooterLeft, shooterRight);
         motorGroup.setRunMode(Motor.RunMode.VelocityControl);
@@ -82,8 +92,9 @@ public class Shooter extends SwitchedStateMachine {
 
 
         off = entranceMode(from -> {
-            shooterLeft.setRunMode(Motor.RunMode.RawPower);
-            shooterLeft.set(0);
+            motorGroup.setRunMode(Motor.RunMode.RawPower);
+            motorGroup.set(0);
+            setHood(HOOD_DEFAULT);
             stateTelemetry.setValue("off");
         });
     }
@@ -93,20 +104,25 @@ public class Shooter extends SwitchedStateMachine {
     public static class AimCalculator{
         public InterpLUT distToVel;
         public InterpLUT distToKCorrection;
+        public InterpLUT distToHoodPos;
         public static double[] distances =           new double[]{20,   30,   40,   50,   60,   70,  80};
         public static double[] velocities =          new double[]{700, 900, 1000, 1050, 1100, 1200, 1250};
         public static double[] velCorrectionFactor = new double[]{0.4, 0.5, 0.6,  0.54, 0.85, 0.9,  0.96}; // take time in the air and then subtract a bit
+        public static double[] hoodPositions =       new double[]{0.2, 0.3,  0.4,  0.6,  0.65, 0.7,  0.8};
         public static int iterations = 10;
         public static double robotHeadingAimCorrectionFactor = -0;
         public AimCalculator() {
             distToVel = new InterpLUT();
             distToKCorrection = new InterpLUT();
+            distToHoodPos = new InterpLUT();
             for (int i = 0; i < distances.length; i++) {
                 distToVel.add(distances[i], velocities[i]);
                 distToKCorrection.add(distances[i], velCorrectionFactor[i]);
+                distToHoodPos.add(distances[i], hoodPositions[i]);
             }
             distToVel.createLUT();
             distToKCorrection.createLUT();
+            distToHoodPos.createLUT();
         }
 
 
@@ -155,7 +171,8 @@ public class Shooter extends SwitchedStateMachine {
 
             return new double[]{
                     distToVel.get(targetDist),
-                    MathFunctions.normalizeAngle(targetPose.minus(pose).heading() + headingCorrection)
+                    MathFunctions.normalizeAngle(targetPose.minus(pose).heading() + headingCorrection),
+                    distToHoodPos.get(targetDist)
             };
         }
 
@@ -181,23 +198,22 @@ public class Shooter extends SwitchedStateMachine {
                         Pose targetShootPose = getPose(alliance, side);
 
                         double[] solution = aimCalculator.targetPowersHeading(robotPose, motionState.velocity().toVector(), targetShootPose);
-                        double targetVelocity = MathUtils.clamp(
-                                solution[0],
-                                AimCalculator.distances[0],
-                                AimCalculator.distances[AimCalculator.distances.length - 1]
-                        );
+                        double targetVelocity = solution[0];
 
                         //pass in current voltage as long as value is valid
-                        shooterLeft.set(targetVelocity, currentVoltage > 0 ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
-                        currentTargetVelocity = targetVelocity;//need to update here
+                        shootingTargetVelocity = targetVelocity; // need to update
+                        currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
+
                         if(targetHeadingChannel != null) {
                             targetHeadingChannel.send(Angle.fromRadians(solution[1]));//send target heading over through channel
                         }
+                        setShooter(currentTargetVelocity);
+                        setHood(solution[2]); //set hood servo position
 
-                        if (resultChannel != null && !notified[0]) {
-                            if (isAtVelocity(targetVelocity, tolerance)) {
+                        if (resultChannel != null && !notified[0]) {//only returns to channel if not targeting default velocity
+                            if (isAtVelocity(shootingTargetVelocity, tolerance)) {
                                 notified[0] = true;
-                                resultChannel.sendIfEmpty(VelocityStatus.AtTarget);
+                                resultChannel.sendIfEmpty(VelocityStatus.AT_TARGET);
                             }
                         }
                     }
@@ -205,7 +221,7 @@ public class Shooter extends SwitchedStateMachine {
                 },
                 self -> {
                     if(resultChannel != null){
-                        resultChannel.sendIfEmpty(VelocityStatus.Cancelled);
+                        resultChannel.sendIfEmpty(VelocityStatus.CANCELLED);
                     }
                 }
         );
@@ -224,6 +240,9 @@ public class Shooter extends SwitchedStateMachine {
     public void lutSOTM(ALLIANCE alliance, SIDE side){
         switchTo(lutSOTMMode(alliance, side));
     }
+    public void setHood(double pos){
+        hoodServo.set(pos);
+    }
 
     //two channels used: one for the target heading(to go to turret or save) & one for velocity status
     public Mode lutStaticMode(
@@ -241,24 +260,26 @@ public class Shooter extends SwitchedStateMachine {
                     Pose robotPose = motionState.pose();
                     Pose targetShootPose = getPose(alliance, side);
 
-                    double distance = robotPose.distance(targetShootPose);
-                    double targetVelocity = MathUtils.clamp(
-                            aimCalculator.distToVel.get(distance),
+                    double distance = MathUtils.clamp(
+                            robotPose.distance(targetShootPose),
                             AimCalculator.distances[0],
                             AimCalculator.distances[AimCalculator.distances.length - 1]
                     );
 
-                    currentTargetVelocity = targetVelocity; // need to update
+                    double targetVelocity = aimCalculator.distToVel.get(distance);
+                    shootingTargetVelocity = targetVelocity; // need to update
+                    currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
                     if(targetHeadingChannel != null) {
                         targetHeadingChannel.send(Angle.fromRadians(aimCalculator.getTargetHeading(robotPose, targetShootPose)));
                     }
                     //pass in current voltage as long as value is valid
-                    shooterLeft.set(targetVelocity, currentVoltage > 0 ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
+                    setShooter(currentTargetVelocity);
+                    setHood(aimCalculator.distToHoodPos.get(distance)); //set hood servo position
 
                     if (resultChannel != null && !notified[0]) {
-                        if (isAtVelocity(targetVelocity, tolerance)) {
+                        if (isAtVelocity(shootingTargetVelocity, tolerance)) {//only returns to channel if not targeting default velocity
                             notified[0] = true;
-                            resultChannel.sendIfEmpty(VelocityStatus.AtTarget);
+                            resultChannel.sendIfEmpty(VelocityStatus.AT_TARGET);
                         }
                     }
                 }
@@ -266,7 +287,7 @@ public class Shooter extends SwitchedStateMachine {
             },
             self -> {
                 if(resultChannel != null){
-                    resultChannel.sendIfEmpty(VelocityStatus.Cancelled);
+                    resultChannel.sendIfEmpty(VelocityStatus.CANCELLED);
                 }
             }
         );
@@ -293,24 +314,41 @@ public class Shooter extends SwitchedStateMachine {
         return off;
     }
 
+    public void setShooter(double currentTargetVelocity){
+        shooterLeft.set(
+                currentTargetVelocity,
+                currentVoltage > 0 ? currentVoltage : MotorEx.REFERENCE_VOLTAGE
+        );
+        shooterRight.set(
+                currentTargetVelocity,
+                currentVoltage > 0 ? currentVoltage : MotorEx.REFERENCE_VOLTAGE
+        );
+
+    }
+
 
     private Mode fixedVelocityMode(double targetVelocity, double tolerance, Channel<Shooter.VelocityStatus> resultChannel){
         boolean[] notified = new boolean[1];
         currentTargetVelocity = targetVelocity;
         return egressMode(self -> {
-                stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
-                motorGroup.setRunMode(MotorEx.RunMode.VelocityControl);
-                motorGroup.set(targetVelocity);
-                if (resultChannel != null && notified[0] == false) {
-                    if (isAtVelocity(targetVelocity, tolerance)) {
+            stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
+            motorGroup.setRunMode(MotorEx.RunMode.VelocityControl);
+            shootingTargetVelocity = targetVelocity; // need to update
+            currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
+            setShooter(currentTargetVelocity);
+            setHood(HOOD_DEFAULT);
+
+
+            if (resultChannel != null && notified[0] == false) {
+                    if (isAtVelocity(shootingTargetVelocity, tolerance)) {
                         notified[0] = true;
-                        resultChannel.sendIfEmpty(Shooter.VelocityStatus.AtTarget);
+                        resultChannel.sendIfEmpty(VelocityStatus.AT_TARGET);
                     }
                 }
                 return self;
             }, self -> {
                 if(resultChannel != null){
-                    resultChannel.sendIfEmpty(VelocityStatus.Cancelled);
+                    resultChannel.sendIfEmpty(VelocityStatus.CANCELLED);
                 }
             });
     }
@@ -341,6 +379,7 @@ public class Shooter extends SwitchedStateMachine {
                     stateTelemetry.setValue("Fixed Power (" + power + ")");
                     motorGroup.setRunMode(MotorEx.RunMode.RawPower);
                     motorGroup.set(power);
+                    setHood(HOOD_DEFAULT);
                 }
         );
     }
@@ -384,10 +423,16 @@ public class Shooter extends SwitchedStateMachine {
             return Math.abs(getVelocity() - targetVelocity) <= Math.abs(tolerance);
         } return true;
     }
-    public boolean isAtVelocity(double tolerance){
+
+    // Checks against currently commanded velocity(including default)
+    public boolean isAtCurrentTargetVelocity(double tolerance) {
         return isAtVelocity(currentTargetVelocity, tolerance);
     }
 
+    // Checks against calculated shooting velocity(not includign default)
+    public boolean isAtShootingTargetVelocity(double tolerance) {
+        return isAtVelocity(shootingTargetVelocity, tolerance);
+    }
 
     //pass in side you're shooting from
     //if close side, it has to be less than both of the lines
@@ -408,14 +453,24 @@ public class Shooter extends SwitchedStateMachine {
         return false;
     }
     public enum VelocityStatus{
-        AtTarget,
-        Cancelled
+        AT_TARGET,
+        CANCELLED
     }
 
+    public void setUseDefaultVelocity(boolean useDefault){
+        this.useDefaultVelocity = useDefault;
+    }
 
-    public double getCurrentTargetVelocity(){
+    public double getCurrentTargetVelocity(){//includes default velocity
         return currentTargetVelocity;
     }
+
+    public double getShootingTargetVelocity(){//does not include default velocity
+        return shootingTargetVelocity;
+    }
+
+
+
     public void sendMotionState(MotionState motionState){
         motionStates.send(motionState);
     }

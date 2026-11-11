@@ -21,10 +21,10 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 public class FlowerWedge extends SwitchedStateMachine {
     ServoEx servo;
     Telemetry.Item stateTelemetry;
-    Mode active;
-    Mode inactive;
-    public static double INACTIVE_POSITION = 0.5;
-    public static double ACTIVE_POSITION = 0.8;
+    Mode down;
+    Mode up;
+    public static double DOWN_POSITION = 0.5;
+    public static double UP_POSITION = 0.8;
     public static boolean INVERTED = false;
 
     public FlowerWedge(Context ctx){
@@ -35,29 +35,29 @@ public class FlowerWedge extends SwitchedStateMachine {
 
         stateTelemetry = ctx.telemetry().addData("FlowerWedge/State", "unknown");
         //start from this mode
-        inactive = entranceMode(from -> {
-            stateTelemetry.setValue("inactive");
-            servo.set(INACTIVE_POSITION);
+        up = entranceMode(from -> {
+            stateTelemetry.setValue("up");
+            servo.set(UP_POSITION);
         });
 
-        active = mode(self -> {
-            stateTelemetry.setValue("active");
-            servo.set(ACTIVE_POSITION);
+        down = mode(self -> {
+            stateTelemetry.setValue("down");
+            servo.set(DOWN_POSITION);
             return self;
         });
     }
     @NonNull
     @Override
     protected Mode init(){
-        return inactive;
+        return up;
     }
 
-    public void setActive(){
-        switchTo(active);
+    public void setDown(){
+        switchTo(down);
     }
 
-    public void setInactive(){
-        switchTo(inactive);
+    public void setUp(){
+        switchTo(up);
     }
 
     //Returns previous set position (not current servo position) b/c assumes no encoder attached

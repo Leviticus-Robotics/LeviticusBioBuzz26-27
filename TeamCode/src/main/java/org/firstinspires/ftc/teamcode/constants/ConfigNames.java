@@ -12,8 +12,8 @@ public class ConfigNames {
     public static String OCTOQUAD = "octoquad";
 
     public static String testMotor = "motor";
-    public static String shooterLeft = "shooter1";
-    public static String shooterRight = "shooter2";
+    public static String shooterLeft = "BR";
+    public static String shooterRight = "BL";
     public static String intake = "intake";
     public static String transfer = "transfer";
     public static String turretServo1 = "ts1";
@@ -32,5 +32,7 @@ public class ConfigNames {
     public static String breaker2 = "b2";
 
     public static String transferGate = "tG";
+
+    public static String hoodServo = "hoodServo";
 
 }

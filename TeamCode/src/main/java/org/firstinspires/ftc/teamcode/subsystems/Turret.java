@@ -49,11 +49,12 @@ public class Turret extends SwitchedStateMachine {
 
 
     private Channel<Angle> targetHeadingsChannel = linkedSingleChannel();//receives a channel of target heading inputs for turret for sotm/lut
-    private Angle currentTurretAngle  = new Angle();
+    private Angle currentTurretAngle = new Angle();
     //obtained through encoder
     Mode off;
     Mode startMode;
     protected Telemetry.Item stateTelemetry;
+    Angle targetAngle = new Angle();
 
     //check if need to pass in start position from encoder to set to default position because can reset to absolute position
     //passing in true to reset zero moves turret back to center position
@@ -117,7 +118,7 @@ public class Turret extends SwitchedStateMachine {
     public Mode trackingMode(){
         return mode(self -> {
             if(targetHeadingsChannel != null){
-                Angle targetAngle = targetHeadingsChannel.poll();
+                targetAngle = targetHeadingsChannel.poll();
 
                 if(targetAngle != null) {
                     stateTelemetry.setValue("Tracking Angle ( " + targetAngle.toDegrees() + " deg)");
@@ -188,5 +189,16 @@ public class Turret extends SwitchedStateMachine {
     }
 
 
+    public boolean isAtAngle(Angle angle, double toleranceRad){
+        return getTurretHeadingError(angle) < toleranceRad;
+    }
+
+    public boolean isAtAngle(double toleranceRad){
+        return Math.abs(targetAngle.toRadians() - currentTurretAngle.toRadians()) < toleranceRad;
+    }
+
+    public double getTurretHeadingError(Angle angle){
+        return  Math.abs(angle.toRadians() - currentTurretAngle.toRadians());
+    }
 
 }

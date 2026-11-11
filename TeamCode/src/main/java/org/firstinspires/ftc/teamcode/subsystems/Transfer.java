@@ -28,7 +28,7 @@ public class Transfer extends MotorSubsystem {
 
     public Transfer(Context ctx){
         stateTelemetry = ctx.telemetry().addData("Transfer/State", "unknown");
-        motor = new MotorEx(ctx.hardwareMap(), ConfigNames.intake);
+        motor = new MotorEx(ctx.hardwareMap(), ConfigNames.transfer);
         motor.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         motor.setInverted(true);
         if(usePIDCoefficients){
@@ -74,8 +74,11 @@ public class Transfer extends MotorSubsystem {
             boolean currDetected = detectTwoBalls();
 
             if(currDetected){
-                //turn transfer off if currently detect two balls
-                switchTo(offMode);
+                motor.set(0);
+                stateTelemetry.setValue("Transfer Balls Detected");
+            } else{
+                motor.set(targetVelocity);
+                stateTelemetry.setValue("Transfer on");
             }
             prevTransferDetected = currDetected;
 
@@ -92,9 +95,13 @@ public class Transfer extends MotorSubsystem {
             boolean currDetected = detectTwoBalls();
 
             if(currDetected){
-                //turn transfer off if currently detect two balls
-                switchTo(offMode);
+                motor.set(0);
+                stateTelemetry.setValue("Transfer Balls Detected");
+            } else{
+                motor.set(power);
+                stateTelemetry.setValue("Transfer on");
             }
+
             prevTransferDetected = currDetected;
 
             return self;

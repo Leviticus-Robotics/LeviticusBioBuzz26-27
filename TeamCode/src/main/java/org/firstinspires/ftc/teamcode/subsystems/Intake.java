@@ -68,6 +68,7 @@ public class Intake extends MotorSubsystem {
         return intakeSpot1Detected && intakeSpot2Detected;
     }
 
+    //only from the intake
     public int numBallsDetected(){
         int numBalls = 0;
         if(intakeSpot1Detected) numBalls++;
@@ -83,13 +84,16 @@ public class Intake extends MotorSubsystem {
 
 
     //this runs intake until both intake detects two balls and transfer detects two balls
+    //continaully checking for ball detections, in case where no more balls left, then it stops temporarilyd
     public Mode runVelTillDetectionMode(double targetVelocity){
         return mode(self -> {
             motor.setRunMode(MotorEx.RunMode.VelocityControl);
-            motor.set(targetVelocity, currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
-            //turn intake off if transfer & intake has 4 balls
             if(transferTwoBallsDetected() && intakeTwoBallsDetected()){
-                switchTo(offMode);
+                motor.set(0);
+                stateTelemetry.setValue("All Ball Detection");
+            } else{
+                motor.set(targetVelocity, currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
+                stateTelemetry.setValue("Intaking");
             }
             return self;
         });
@@ -98,10 +102,13 @@ public class Intake extends MotorSubsystem {
     public Mode runPowerTillDetectionMode(double power){
         return mode(self -> {
             motor.setRunMode(MotorEx.RunMode.RawPower);
-            motor.set(power);
             //turn intake off if transfer & intake has 4 balls
             if(transferTwoBallsDetected() && intakeTwoBallsDetected()){
-                switchTo(offMode);
+                motor.set(0);
+                stateTelemetry.setValue("All Ball Detection");
+            } else{
+                motor.set(power);
+                stateTelemetry.setValue("Intaking");
             }
             return self;
         });
