@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.seattlesolvers.solverslib.controller.PIDFController;
 import com.seattlesolvers.solverslib.hardware.motors.Motor;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
@@ -68,6 +69,12 @@ public class MotorEx extends Motor {
         } else {
             setPower(output);
         }
+    }
+    public void setPIDFController(PIDFController controller) {
+        veloController = controller;
+    }
+    public void getPIDFController(PIDFController controller) {
+        veloController = controller;
     }
 
     @Override
