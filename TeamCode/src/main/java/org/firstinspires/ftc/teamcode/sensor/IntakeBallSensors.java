@@ -5,7 +5,7 @@ import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.BallSlot;
+import org.firstinspires.ftc.teamcode.helper.BallSlot;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 
 import dev.frozenmilk.dairy.mercurial.ftc.Context;

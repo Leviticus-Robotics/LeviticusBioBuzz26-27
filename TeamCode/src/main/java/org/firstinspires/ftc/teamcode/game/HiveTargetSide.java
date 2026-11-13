@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.game;
 
-public enum SIDE {
+public enum HiveTargetSide {
     CLOSE,//audience side
     Far//non-audience side
 }

@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import java.util.List;
 import java.util.function.Predicate;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.NanoClock;
+import org.firstinspires.ftc.teamcode.helper.NanoClock;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.teamcode.fusion.engine.FusionDiagnostics;
 import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;

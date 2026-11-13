@@ -14,7 +14,7 @@ import com.pedropathing.math.Pose;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.game.ALLIANCE;
-import org.firstinspires.ftc.teamcode.game.SIDE;
+import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
 
 import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
@@ -29,15 +29,14 @@ public class FullSystemsTeleOp {
 
 
 
-    public static final MercurialFTC.RegisterableProgram SystemTesting = teleOp(new Pose(0, 0), ALLIANCE.RED, SIDE.CLOSE)
+    public static final MercurialFTC.RegisterableProgram SystemTesting = teleOp(new Pose(0, 0), ALLIANCE.RED, HiveTargetSide.CLOSE)
             .withName("Full Test")
             .withGroup("Testing");
 
-    public static MercurialFTC.RegisterableProgram teleOp(Pose startPose, ALLIANCE alliance, SIDE startSide) {
+    public static MercurialFTC.RegisterableProgram teleOp(Pose startPose, ALLIANCE alliance, HiveTargetSide startSide) {
         return MercurialFTC.teleop(ctx -> {
                     RobotCombined r = new RobotCombined(ctx, startSide);
                     r.localizer.setPose(startPose);
-//            FtcDashboard dashboard = FtcDashboard.getInstance();
 
                     //spawns a spawnable to reset turret encoder position from absolute & set turret to center
                     Spawnable<?> program = expression((scope, self) -> {
@@ -94,6 +93,8 @@ public class FullSystemsTeleOp {
                                         } else if (Math.abs(power) > 0.1) {
                                             //if we attempt to power intake, exit out of whatever mode or
                                             r.beginDirectManualFeed(power, power);
+                                        } else if (event.rightTriggerPassedUnder(0.1)) {
+                                            r.endDirectManualFeed();
                                         }
 
                                         if (event.circleWasPressed()) {
@@ -103,7 +104,7 @@ public class FullSystemsTeleOp {
                                         if (event.triangleWasPressed()) {
                                             r.requestEarlyShot();
                                         }
-                                        if (event.crossWasPressed()) {
+                                        if (event.crossWasPressed() && r.isAutomaticRunning()) {
                                             r.requestBallDetect();
                                         }
 
@@ -121,9 +122,9 @@ public class FullSystemsTeleOp {
                     EventManager.Handler<GamepadD.Delta> shootingSideHandler =
                             GamepadD.gamepad1Handler(event -> {
                                         if (event.leftBumperWasPressed()) {
-                                            r.sideMachine.setSide(SIDE.CLOSE);
+                                            r.sideMachine.setSide(HiveTargetSide.CLOSE);
                                         } else if (event.leftTriggerOver(0.3)) {
-                                            r.sideMachine.setSide(SIDE.Far);
+                                            r.sideMachine.setSide(HiveTargetSide.Far);
                                         }
                                         return EventManager.EventHandled.ok();
                                     }

@@ -16,7 +16,8 @@ import com.seattlesolvers.solverslib.util.MathUtils;
 
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.game.SIDE;
+import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
+import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 import org.firstinspires.ftc.teamcode.util.Angle;
@@ -184,7 +185,7 @@ public class Shooter extends SwitchedStateMachine {
 
     public Mode lutSOTMMode(
             ALLIANCE alliance,
-            SIDE side,
+            HiveTargetSide side,
             Channel<Shooter.VelocityStatus> resultChannel,
             double tolerance
         ){
@@ -226,18 +227,18 @@ public class Shooter extends SwitchedStateMachine {
                 }
         );
     }
-    public Mode lutSOTMMode(ALLIANCE alliance, SIDE side, double tolerance){
+    public Mode lutSOTMMode(ALLIANCE alliance, HiveTargetSide side, double tolerance){
         return lutSOTMMode(alliance, side, null, tolerance);
     }
 
-    public Mode lutSOTMMode(ALLIANCE alliance, SIDE side){
+    public Mode lutSOTMMode(ALLIANCE alliance, HiveTargetSide side){
         return lutSOTMMode(alliance, side, null, DEFAULT_TOLERANCE);
     }
 
-    public void lutSOTM(ALLIANCE alliance, SIDE side, double tolerance){
+    public void lutSOTM(ALLIANCE alliance, HiveTargetSide side, double tolerance){
         switchTo(lutSOTMMode(alliance, side, tolerance));
     }
-    public void lutSOTM(ALLIANCE alliance, SIDE side){
+    public void lutSOTM(ALLIANCE alliance, HiveTargetSide side){
         switchTo(lutSOTMMode(alliance, side));
     }
     public void setHood(double pos){
@@ -247,7 +248,7 @@ public class Shooter extends SwitchedStateMachine {
     //two channels used: one for the target heading(to go to turret or save) & one for velocity status
     public Mode lutStaticMode(
               ALLIANCE alliance,
-              SIDE side,
+              HiveTargetSide side,
               Channel<Shooter.VelocityStatus> resultChannel,
               double tolerance
         ){
@@ -292,19 +293,19 @@ public class Shooter extends SwitchedStateMachine {
             }
         );
     }
-    public Mode lutStaticMode(ALLIANCE alliance, SIDE side, double tolerance){
+    public Mode lutStaticMode(ALLIANCE alliance, HiveTargetSide side, double tolerance){
         return lutStaticMode(alliance, side, null, tolerance);
     }
 
-    public Mode lutStaticMode(ALLIANCE alliance, SIDE side){
+    public Mode lutStaticMode(ALLIANCE alliance, HiveTargetSide side){
         return lutStaticMode(alliance, side, null, DEFAULT_TOLERANCE);
     }
 
-    public void lutStatic(ALLIANCE alliance, SIDE side, double tolerance){
+    public void lutStatic(ALLIANCE alliance, HiveTargetSide side, double tolerance){
         switchTo(lutStaticMode(alliance, side, tolerance));
     }
 
-    public void lutStatic(ALLIANCE alliance, SIDE side){
+    public void lutStatic(ALLIANCE alliance, HiveTargetSide side){
         switchTo(lutStaticMode(alliance, side));
     }
 
@@ -314,7 +315,7 @@ public class Shooter extends SwitchedStateMachine {
         return off;
     }
 
-    public void setShooter(double currentTargetVelocity){
+    private void setShooter(double currentTargetVelocity){
         shooterLeft.set(
                 currentTargetVelocity,
                 currentVoltage > 0 ? currentVoltage : MotorEx.REFERENCE_VOLTAGE
@@ -326,8 +327,7 @@ public class Shooter extends SwitchedStateMachine {
 
     }
 
-
-    private Mode fixedVelocityMode(double targetVelocity, double tolerance, Channel<Shooter.VelocityStatus> resultChannel){
+    private Mode fixedVelocityMode(double targetVelocity, double tolerance, Channel<Shooter.VelocityStatus> resultChannel, boolean setHood){
         boolean[] notified = new boolean[1];
         currentTargetVelocity = targetVelocity;
         return egressMode(self -> {
@@ -336,7 +336,9 @@ public class Shooter extends SwitchedStateMachine {
             shootingTargetVelocity = targetVelocity; // need to update
             currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
             setShooter(currentTargetVelocity);
-            setHood(HOOD_DEFAULT);
+            if(setHood) {
+                setHood(HOOD_DEFAULT);
+            }
 
 
             if (resultChannel != null && notified[0] == false) {
@@ -359,16 +361,16 @@ public class Shooter extends SwitchedStateMachine {
     }
 
 
-    public void fixedVelocity(double targetVelocity){
-        switchTo(fixedVelocityMode(targetVelocity, DEFAULT_TOLERANCE, null));
+    public void fixedVelocity(double targetVelocity, boolean setHood){
+        switchTo(fixedVelocityMode(targetVelocity, DEFAULT_TOLERANCE, null, setHood));
     }
 
-    public void fixedVelocity(double targetVelocity, double tolerance) {
-        switchTo(fixedVelocityMode(targetVelocity, tolerance, null));
+    public void fixedVelocity(double targetVelocity, double tolerance, boolean setHood) {
+        switchTo(fixedVelocityMode(targetVelocity, tolerance, null, setHood));
     }
 
-    public void fixedVelocity(double targetVelocity, double tolerance, Channel<Shooter.VelocityStatus> resultChannel) {
-        switchTo(fixedVelocityMode(targetVelocity, tolerance, resultChannel));//if result channel is null, it will pass in null to third parameter
+    public void fixedVelocity(double targetVelocity, double tolerance, Channel<Shooter.VelocityStatus> resultChannel, boolean setHood) {
+        switchTo(fixedVelocityMode(targetVelocity, tolerance, resultChannel, setHood));//if result channel is null, it will pass in null to third parameter
     }
 
 
@@ -393,11 +395,11 @@ public class Shooter extends SwitchedStateMachine {
         switchTo(off);
     }
 
-    public Pose getPose(ALLIANCE alliance, SIDE side){
+    public Pose getPose(ALLIANCE alliance, HiveTargetSide side){
         if(alliance == ALLIANCE.BLUE){
-            return side == SIDE.CLOSE ? AIM_BLUE_CLOSE : AIM_BLUE_FAR;
+            return side == HiveTargetSide.CLOSE ? AIM_BLUE_CLOSE : AIM_BLUE_FAR;
         } else{
-            return side == SIDE.CLOSE ? AIM_RED_CLOSE : AIM_RED_FAR;
+            return side == HiveTargetSide.CLOSE ? AIM_RED_CLOSE : AIM_RED_FAR;
         }
     }
 
@@ -437,11 +439,11 @@ public class Shooter extends SwitchedStateMachine {
     //pass in side you're shooting from
     //if close side, it has to be less than both of the lines
     //if far side, it has to be greater than boht of the lines
-    public boolean isValidShootPosition(SIDE side){
+    public boolean isValidShootPosition(HiveTargetSide side){
         MotionState motionState = motionStates.query();
         if(motionState == null) return false;
         Pose robotPose = motionState.pose();
-        if(side == SIDE.CLOSE){
+        if(side == HiveTargetSide.CLOSE){
             if(robotPose.y() <= (WITHIN_SHOOTING_RANGE[0] * robotPose.x() + WITHIN_SHOOTING_RANGE[1]) && robotPose.y() <= (WITHIN_SHOOTING_RANGE[2] * robotPose.x() + WITHIN_SHOOTING_RANGE[3])){
                 return true;
             }

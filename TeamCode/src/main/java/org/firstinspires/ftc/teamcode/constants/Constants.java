@@ -20,8 +20,7 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
 import org.firstinspires.ftc.teamcode.localization.LocalizationRuntime;
 import org.firstinspires.ftc.teamcode.localization.LocalizationConfig;
-import org.firstinspires.ftc.teamcode.NanoClock;
-import org.firstinspires.ftc.teamcode.localization.pedro.FusionMecanumDrivetrain;
+import org.firstinspires.ftc.teamcode.helper.NanoClock;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusionFollower;
 
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
@@ -46,10 +45,8 @@ public class Constants {
             c.backRightDirection.set(DcMotorSimple.Direction.REVERSE);
         }
     );
-    public static
-    double vx = 6;//2.3;
-    public static
-    double vy = 2.3; // 6
+    public static double vx = 6;//2.3;
+    public static double vy = 2.3; // 6
     public static OctoQuadConfig localizerConfig = new OctoQuadConfig(c -> {
         c.name.set(ConfigNames.OCTOQUAD);
         c.xPodPort.set(0);

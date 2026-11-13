@@ -1,4 +1,7 @@
-package org.firstinspires.ftc.teamcode.subsystems;
+package org.firstinspires.ftc.teamcode.helper;
+
+import org.firstinspires.ftc.teamcode.subsystems.Intake;
+import org.firstinspires.ftc.teamcode.subsystems.Transfer;
 
 public class BallCounter {
     Transfer transfer;

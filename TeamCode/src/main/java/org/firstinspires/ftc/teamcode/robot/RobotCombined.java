@@ -1,8 +1,6 @@
 package org.firstinspires.ftc.teamcode.robot;
 
-import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.command;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.exec;
-import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.expression;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.ifThen;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.loop;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.noop;
@@ -12,38 +10,34 @@ import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.sequenc
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitFor;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitUntil;
 
-import androidx.annotation.NonNull;
-
 import com.acmerobotics.dashboard.config.Config;
-import com.seattlesolvers.solverslib.command.SequentialCommandGroup;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.BallSlot;
+import org.firstinspires.ftc.teamcode.helper.BallSlot;
 import org.firstinspires.ftc.teamcode.constants.Constants;
 import org.firstinspires.ftc.teamcode.game.ALLIANCE;
-import org.firstinspires.ftc.teamcode.game.SIDE;
+import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
+import org.firstinspires.ftc.teamcode.helper.HiveSideHelper;
 import org.firstinspires.ftc.teamcode.sensor.IntakeBallSensors;
 import org.firstinspires.ftc.teamcode.sensor.TransferBeamBreak;
 import org.firstinspires.ftc.teamcode.sensor.TurretEncoder;
 import org.firstinspires.ftc.teamcode.sensor.VoltageMonitor;
-import org.firstinspires.ftc.teamcode.subsystems.BallCounter;
+import org.firstinspires.ftc.teamcode.helper.BallCounter;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.FlowerWedge;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
-import org.firstinspires.ftc.teamcode.subsystems.SideMachine;
+import org.firstinspires.ftc.teamcode.helper.HiveSideHelper;
 import org.firstinspires.ftc.teamcode.subsystems.Transfer;
 import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
 import org.firstinspires.ftc.teamcode.subsystems.Turret;
 
-import dev.frozenmilk.dairy.mercurial.continuations.Command;
 import dev.frozenmilk.dairy.mercurial.continuations.Continuation;
 import dev.frozenmilk.dairy.mercurial.ftc.Context;
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 import dev.frozenmilk.dairy.mercurial.processes.ExitReason;
 import dev.frozenmilk.dairy.mercurial.processes.Fiber;
-import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 /** Robot class combining multiple subsystems
  *
@@ -64,7 +58,7 @@ public class RobotCombined {
     TurretEncoder turretEncoder;
     TransferGate transferGate;
     Telemetry.Item poseTelemetry;
-    SideMachine sideMachine;
+    HiveSideHelper sideMachine;
     public static double POST_SHOOT_DELAY = 0.5;
     public static double SHOOTER_SPINUP_TIME = 0.5;
     public static double TURRET_TOLERANCE = Math.toRadians(1.5);//can be up to 1.5 deg off when starting
@@ -82,8 +76,8 @@ public class RobotCombined {
 
 
 
-    public RobotCombined(Context ctx, SIDE startSide){
-        sideMachine = new SideMachine(startSide);
+    public RobotCombined(Context ctx, HiveTargetSide startSide){
+        sideMachine = new HiveSideHelper(startSide);
         poseTelemetry = ctx.telemetry().addData("Localizer Pose: ", "unknown");
         localizer = new MercurialLocalizer(Constants.createLocalizer(ctx.hardwareMap()));
 
@@ -216,7 +210,7 @@ public class RobotCombined {
 
     //assumes we already have balls
     //doesn't check any conditions for criteria for shooting
-    private Continuation.Builder<?> assistedShootSequence(ALLIANCE alliance, SIDE side){
+    private Continuation.Builder<?> assistedShootSequence(ALLIANCE alliance, HiveTargetSide side){
         return sequence(
                 //start the shooter in default shooting mode, but still calculate w/ lutSOTM
                 exec(() -> {
@@ -246,7 +240,7 @@ public class RobotCombined {
     //does full cycle autonomously
     //assumes transfer gate already closed
     //doesnt autodrive though
-    private Continuation.Builder<?> automaticCycle(ALLIANCE alliance, SIDE side, double waitBallsTimeout){
+    private Continuation.Builder<?> automaticCycle(ALLIANCE alliance, HiveTargetSide side, double waitBallsTimeout){
         return sequence(
             exec(() -> {
                 transferGate.setClosed();
@@ -271,7 +265,7 @@ public class RobotCombined {
         );
     }
 
-    private Continuation.Builder<?> automaticMode(ALLIANCE alliance, SIDE side, double waitBallsTimeout, boolean repeat){
+    private Continuation.Builder<?> automaticMode(ALLIANCE alliance, HiveTargetSide side, double waitBallsTimeout, boolean repeat){
         Continuation.Builder<?> cycle = automaticCycle(alliance, side, waitBallsTimeout);
         return repeat ? loop(cycle) : cycle;
     }
@@ -279,11 +273,12 @@ public class RobotCombined {
 
 
 
-    private boolean isReadyToShoot(SIDE side){
+    private boolean isReadyToShoot(HiveTargetSide side){
         //maybe add the camera tilt angle check here
-        return shooter.isValidShootPosition(side)
+        return (shooter.isValidShootPosition(side)
                 && shooter.isAtShootingTargetVelocity(Shooter.DEFAULT_TOLERANCE)
-                && turret.isAtAngle(TURRET_TOLERANCE);
+                && turret.isAtAngle(TURRET_TOLERANCE)) ||
+                driverRequestedEarlyShot;
     }
 
 
@@ -332,7 +327,7 @@ public class RobotCombined {
         driverBallDetect = false;
     }
 
-    public void startAssistedShoot(ALLIANCE alliance, SIDE side){
+    public void startAssistedShoot(ALLIANCE alliance, HiveTargetSide side){
         cancelActiveProcesses();//make sure nothing running before
         resetProcesses();
         activeFiber = assistedShootSequence(alliance, side)
@@ -341,7 +336,7 @@ public class RobotCombined {
         activeBehavior = ActiveBehavior.ASSISTED_SHOOT;
     }
 
-    public void startAutomatic(ALLIANCE alliance, SIDE side, double timeout, boolean repeat){
+    public void startAutomatic(ALLIANCE alliance, HiveTargetSide side, double timeout, boolean repeat){
         cancelActiveProcesses();
         resetProcesses();
         activeFiber = automaticMode(alliance, side, timeout, repeat)
@@ -352,7 +347,7 @@ public class RobotCombined {
 
 
     public void requestManaulShoot(ALLIANCE alliance,
-                                   SIDE side,
+                                   HiveTargetSide side,
                                    boolean driverHasManuallyFed,
                                    double intakePower,
                                    double transferPower

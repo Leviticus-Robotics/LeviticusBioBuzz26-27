@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.sensor;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.BallSlot;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 
 import dev.frozenmilk.dairy.mercurial.ftc.Context;

@@ -36,7 +36,7 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 public class Turret extends SwitchedStateMachine {
     ServoEx servoLeft;
     ServoEx servoRight;
-    ServoExGroup servoGroup;
+    public ServoExGroup servoGroup;
     public static Range servoRange = new Range(0, 1);
     public static double SERVO_CENTER_POSITION = 0.5;
     //can reference this if want to set to center in nonTurret class
@@ -200,5 +200,10 @@ public class Turret extends SwitchedStateMachine {
     public double getTurretHeadingError(Angle angle){
         return  Math.abs(angle.toRadians() - currentTurretAngle.toRadians());
     }
+
+    public Angle currentTurretAngle(){
+        return currentTurretAngle;
+    }
+
 
 }
