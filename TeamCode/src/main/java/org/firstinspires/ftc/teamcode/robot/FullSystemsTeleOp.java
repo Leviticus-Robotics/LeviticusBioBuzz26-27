@@ -35,6 +35,12 @@ public class FullSystemsTeleOp {
 
     public static MercurialFTC.RegisterableProgram teleOp(Pose startPose, ALLIANCE alliance, HiveTargetSide startSide) {
         return MercurialFTC.teleop(ctx -> {
+                    Telemetry multiTelemetry = new MultipleTelemetry(
+                            ctx.telemetry(),
+                            FtcDashboard.getInstance().getTelemetry()
+                    );
+                    multiTelemetry.setAutoClear(false);
+                    ctx.telemetry(multiTelemetry);
                     RobotCombined r = new RobotCombined(ctx, startSide);
                     r.localizer.setPose(startPose);
 
@@ -131,21 +137,18 @@ public class FullSystemsTeleOp {
                             );
 
 
-                    Telemetry telemetry = new MultipleTelemetry(
-                            ctx.telemetry(),
-                            FtcDashboard.getInstance().getTelemetry()
-                    );
 
 
-                    Fiber<?> telemetryFiber = loop(
+
+                    loop(
                             expression((scope, _self) -> {
                                 scope.runExec(() -> {
-                                    telemetry.clear();
-                                    telemetry.addData("Field Centric", driveSettings.fieldCentric);
-                                    telemetry.addData("Slow Mode", driveSettings.slowMode);
-                                    telemetry.addData("Shooter Velocity", r.shooter.getVelocity());
-                                    telemetry.addData("Shooter Mode", r.shooter.mode());
-                                    telemetry.update();
+                                    ctx.telemetry().clear();
+                                    ctx.telemetry().addData("Field Centric", driveSettings.fieldCentric);
+                                    ctx.telemetry().addData("Slow Mode", driveSettings.slowMode);
+                                    ctx.telemetry().addData("Shooter Velocity", r.shooter.getVelocity());
+                                    ctx.telemetry().addData("Shooter Mode", r.shooter.mode());
+                                    ctx.telemetry().update();
                                 });
                                 scope.run(waitFor.bind(seconds(0.1)));
                                 return noop;

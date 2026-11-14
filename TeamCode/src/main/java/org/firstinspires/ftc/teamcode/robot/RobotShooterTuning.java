@@ -135,18 +135,16 @@ public class RobotShooterTuning {
     public void resetGate(){
         transferGate.setClosed();
     }
+
     public void intake(){
         intake.fixedPower(1.0);
         transfer.fixedPower(1.0);
     }
-    double power = 0;
-    double interval = 0.1;
+    public static double power = 0;
     //use Desmos to graph the chart between x: power & y: velocity * (current voltage/ target voltage)
     //y-intercept is the kS term, m is the kV term
-    public void tuneKsKvNextInterval(){
-        power += interval;
+    public void tuneKsKv(){
         shooter.fixedPower(power);
-        velocityTelemetry.setValue(shooter.getVelocity());
     }
 
     //run target velocity, tune P and maybe D
@@ -157,11 +155,16 @@ public class RobotShooterTuning {
 
     //plug in different target velocities and obeserve the distance from goal
     //pick velocities that work at each point, and add to the LUT
-    public void tuneDistVelLUT(double targetVelocity){
+    public void tuneDistVelLUT(){
         shooter.setUseDefaultVelocity(false);
         shooter.fixedVelocity(targetVelocity, false);
     }
-    public void tuneDistHoodLUT(double hoodPos){
+
+    public void tuneDistHoodLUT(){
+        shooter.setUseDefaultVelocity(false);
+        shooter.fixedVelocity(targetVelocity, true);
+    }
+    public void testDistLUT(){
         shooter.lutStatic(alliance, sideMachine.getSide());
     }
 

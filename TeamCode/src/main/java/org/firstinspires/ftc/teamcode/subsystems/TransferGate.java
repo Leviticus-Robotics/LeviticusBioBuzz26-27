@@ -24,15 +24,15 @@ public class TransferGate extends SwitchedStateMachine {
     Telemetry.Item stateTelemetry;
     Mode closed;
     Mode open;
-    public static double OPEN_POSITION = 0.5;
-    public static double CLOSED_POSITION = 0.8;
+    public static double OPEN_POSITION = 0.65;
+    public static double CLOSED_POSITION = 0.5;
     public static boolean INVERTED = false;
 
     public TransferGate(Context ctx){
         servo = new ServoEx(ctx.hardwareMap(), ConfigNames.transferGate);
         servo.setInverted(INVERTED);
-        servo.setPwm(PwmControl.PwmRange.defaultRange);//can alter pwm range like so
-        servo.setCachingTolerance(0.0001); //can alter caching tolerance like so
+//        servo.setPwm(PwmControl.PwmRange.defaultRange);//can alter pwm range like so
+//        servo.setCachingTolerance(0.0001); //can alter caching tolerance like so
 
         stateTelemetry = ctx.telemetry().addData("TransferGate/State", "unknown");
         //start from this mode
@@ -41,12 +41,22 @@ public class TransferGate extends SwitchedStateMachine {
             servo.set(OPEN_POSITION);
         });
 
-        closed = mode(self -> {
+        closed = entranceMode(self -> {
             stateTelemetry.setValue("active");
             servo.set(CLOSED_POSITION);
-            return self;
         });
     }
+
+    public Mode customPositionMode(double servoPos){
+        return entranceMode(self -> {
+            servo.set(servoPos);
+        });
+    }
+
+    public void setCustomPositionMode(double servoPos){
+        switchTo(customPositionMode(servoPos));
+    }
+
     @NonNull
     @Override
     protected Mode init(){

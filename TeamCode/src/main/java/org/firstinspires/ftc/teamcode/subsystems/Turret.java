@@ -31,6 +31,7 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
  *  Robot Holding / Path Following modes
  *  Uses: 2 Servos (1 Encoder -> which comes in as a sensor)
  *  1) Left & Right Servo when staring from front intake area looking straight at the turret
+ *  0.5 servo position is facing opposite of the intake
  */
 @Config
 public class Turret extends SwitchedStateMachine {
@@ -39,6 +40,7 @@ public class Turret extends SwitchedStateMachine {
     public ServoExGroup servoGroup;
     public static Range servoRange = new Range(0, 1);
     public static double SERVO_CENTER_POSITION = 0.5;
+    public static Angle turretIntakeOffset = Angle.fromRadians(-Math.PI);
     //can reference this if want to set to center in nonTurret class
 
     //this is the servo position where angle 0 is defined
@@ -97,7 +99,8 @@ public class Turret extends SwitchedStateMachine {
     public Mode setRawAngleMode(Angle angle){
         return mode(self -> {
             stateTelemetry.setValue("Raw Angle Set ( " + angle.toDegrees() + " deg)");
-            servoGroup.set(convertAngleToServoRange(angle));
+            Angle correctTurretAngle = convertIntakeToTurretAngle(angle);//convert from intake target angle to turret angle
+            servoGroup.set(convertAngleToServoRange(correctTurretAngle));
             return self;
         });
     }
@@ -105,7 +108,11 @@ public class Turret extends SwitchedStateMachine {
     public Mode setOptimizedAngleMode(Angle angle){
         return mode(self -> {
             stateTelemetry.setValue("Optimized Angle Set ( " + angle.toDegrees() + " deg)");
-            servoGroup.set(convertAngleToServoRange(optimizeAngle(angle)));
+            //first optimize it assuming intake dir is the same dir as turret
+            Angle optimizedAngle = optimizeAngle(angle);
+            //then rotate so that its relative to turret servos
+            Angle correctTurretAngle = convertIntakeToTurretAngle(optimizedAngle);
+            servoGroup.set(convertAngleToServoRange(correctTurretAngle));
             return self;
         });
     }
@@ -122,7 +129,10 @@ public class Turret extends SwitchedStateMachine {
 
                 if(targetAngle != null) {
                     stateTelemetry.setValue("Tracking Angle ( " + targetAngle.toDegrees() + " deg)");
-                    servoGroup.set(convertAngleToServoRange(optimizeAngle(targetAngle)));
+                    Angle optimizedAngle = optimizeAngle(targetAngle);
+                    //then rotate so that its relative to turret servos
+                    Angle correctTurretAngle = convertIntakeToTurretAngle(optimizedAngle);
+                    servoGroup.set(convertAngleToServoRange(correctTurretAngle));
                 } else{
                     stateTelemetry.setValue("Tracking Angle: null");
                 }
@@ -150,6 +160,11 @@ public class Turret extends SwitchedStateMachine {
         switchTo(off);
     }
 
+    //pass in intakeAngle we want turret to face
+    public Angle convertIntakeToTurretAngle(Angle intakeAngle){
+        intakeAngle.add(turretIntakeOffset);
+        return intakeAngle;
+    }
 
 
     @NonNull

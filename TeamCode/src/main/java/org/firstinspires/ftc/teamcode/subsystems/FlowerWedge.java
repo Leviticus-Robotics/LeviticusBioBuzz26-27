@@ -23,8 +23,8 @@ public class FlowerWedge extends SwitchedStateMachine {
     Telemetry.Item stateTelemetry;
     Mode down;
     Mode up;
-    public static double DOWN_POSITION = 0.5;
-    public static double UP_POSITION = 0.8;
+    public static double DOWN_POSITION = 0.32;
+    public static double UP_POSITION = 0.65;
     public static boolean INVERTED = false;
 
     public FlowerWedge(Context ctx){
@@ -40,16 +40,25 @@ public class FlowerWedge extends SwitchedStateMachine {
             servo.set(UP_POSITION);
         });
 
-        down = mode(self -> {
+        down = entranceMode(self -> {
             stateTelemetry.setValue("down");
             servo.set(DOWN_POSITION);
-            return self;
         });
     }
     @NonNull
     @Override
     protected Mode init(){
         return up;
+    }
+
+    public Mode customPosMode(double pos){
+        return entranceMode(from -> {
+            servo.set(pos);
+        });
+    }
+
+    public void setCustomPos(double pos){
+        switchTo(customPosMode(pos));
     }
 
     public void setDown(){

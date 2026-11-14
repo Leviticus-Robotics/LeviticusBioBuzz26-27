@@ -12,7 +12,7 @@ import com.pedropathing.paths.PathTracker;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.Constants;
-import org.firstinspires.ftc.teamcode.game.SIDE;
+
 import org.jetbrains.annotations.NotNull;
 
 import dev.frozenmilk.dairy.mercurial.continuations.Continuation;

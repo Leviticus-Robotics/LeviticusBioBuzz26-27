@@ -30,7 +30,7 @@ public class Transfer extends MotorSubsystem {
         stateTelemetry = ctx.telemetry().addData("Transfer/State", "unknown");
         motor = new MotorEx(ctx.hardwareMap(), ConfigNames.transfer);
         motor.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        motor.setInverted(true);
+        motor.setInverted(false);
         if(usePIDCoefficients){
             motor.setVeloCoefficients(pidCoefficients[0], pidCoefficients[1], pidCoefficients[2]);
         }
