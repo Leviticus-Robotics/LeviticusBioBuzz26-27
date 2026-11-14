@@ -2,7 +2,7 @@ package org.firstinspires.ftc.teamcode.localization.pedro;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
+import org.firstinspires.ftc.teamcode.localization.prediction.ControlInput;
 import org.junit.jupiter.api.Test;
 
 class FusionMecanumDrivetrainTest {

@@ -7,7 +7,7 @@ import com.pedropathing.revhub.drivetrains.MecanumConfig;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import java.util.Map;
-import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
+import org.firstinspires.ftc.teamcode.localization.prediction.ControlInput;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 
 /** Mecanum drivetrain that publishes the motor powers Pedro actually applied. */

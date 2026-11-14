@@ -1,21 +1,16 @@
 package org.firstinspires.ftc.teamcode.robot;
 
-import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.command;
-import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.noop;
-
-import androidx.annotation.NonNull;
-
-import com.seattlesolvers.solverslib.command.SequentialCommandGroup;
-
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.teamcode.BallSlot;
 import org.firstinspires.ftc.teamcode.constants.Constants;
 import org.firstinspires.ftc.teamcode.game.ALLIANCE;
 import org.firstinspires.ftc.teamcode.game.SIDE;
-import org.firstinspires.ftc.teamcode.localization.factor.AbsolutePoseFactor;
+import org.firstinspires.ftc.teamcode.localization.prediction.ControlInput;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusedLocalizer;
-import org.firstinspires.ftc.teamcode.localization.sensor.apriltag.AprilTagFrameProcessor;
+import org.firstinspires.ftc.teamcode.localization.pedro.PredictiveLocalizer;
+import org.firstinspires.ftc.teamcode.localization.apriltag.AprilTagFrameProcessor;
+import org.firstinspires.ftc.teamcode.localization.apriltag.AprilTagPoseObservation;
 import org.firstinspires.ftc.teamcode.sensor.IntakeBallSensors;
 import org.firstinspires.ftc.teamcode.sensor.TransferBeamBreak;
 import org.firstinspires.ftc.teamcode.sensor.TurretEncoder;
@@ -30,12 +25,9 @@ import org.firstinspires.ftc.teamcode.subsystems.Turret;
 
 import java.util.List;
 
-import dev.frozenmilk.dairy.mercurial.continuations.Command;
-import dev.frozenmilk.dairy.mercurial.continuations.Continuation;
 import dev.frozenmilk.dairy.mercurial.ftc.Context;
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
-import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 /** Robot class combining multiple subsystems
  *
@@ -55,6 +47,7 @@ public class RobotCombined {
     TransferGate transferGate;
     Telemetry.Item poseTelemetry;
     FusedLocalizer fusedLocalizer;
+    PredictiveLocalizer<ControlInput> predictiveLocalizer;
     AprilTagFrameProcessor aprilTagProcessor;
 
     public enum ShootingMode{
@@ -74,7 +67,11 @@ public class RobotCombined {
         drivetrain = new Drivetrain(ctx);
         localizer = Constants.createLocalizer(ctx.hardwareMap(), drivetrain.getInnerDrivetrain());
         if (Constants.useFusedLocalization) {
-            fusedLocalizer = (FusedLocalizer) localizer.localizer();
+            @SuppressWarnings("unchecked")
+            PredictiveLocalizer<ControlInput> configured =
+                    (PredictiveLocalizer<ControlInput>) localizer.localizer();
+            predictiveLocalizer = configured;
+            fusedLocalizer = predictiveLocalizer.fusedLocalizer();
             aprilTagProcessor = Constants.createAprilTagProcessor();
         }
 
@@ -176,8 +173,13 @@ public class RobotCombined {
     /** Queues one camera frame when fused localization is enabled. */
     public void submitAprilTags(List<AprilTagDetection> detections) {
         if (fusedLocalizer == null || aprilTagProcessor == null) return;
-        AbsolutePoseFactor factor = aprilTagProcessor.fromDetections(detections);
-        if (factor != null) fusedLocalizer.submitFactor(factor);
+        AprilTagPoseObservation observation = aprilTagProcessor.fromDetections(detections);
+        if (observation != null) {
+            fusedLocalizer.addAbsoluteMeasurement(
+                    "apriltag-camera",
+                    observation.timestampNanos(),
+                    observation.gaussian());
+        }
     }
 
 

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.fusion.core;
+package org.firstinspires.ftc.teamcode.fusion;
 
 import org.ejml.simple.SimpleMatrix;
 

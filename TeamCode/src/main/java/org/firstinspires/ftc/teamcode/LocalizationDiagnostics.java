@@ -7,8 +7,9 @@ import com.pedropathing.math.Pose;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.Constants;
+import org.firstinspires.ftc.teamcode.localization.prediction.ControlInput;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusedLocalizer;
-import org.firstinspires.ftc.teamcode.localization.sensor.CommandProcessSource;
+import org.firstinspires.ftc.teamcode.localization.pedro.PredictiveLocalizer;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 
 import java.util.Arrays;
@@ -25,6 +26,7 @@ import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 @SuppressWarnings("unused")
 public final class LocalizationDiagnostics {
     public static double slowMultiplier = 0.4;
+    public static double predictionHorizonSeconds = 0.08;
 
     public static final RegisterableProgram localizationDiagnostics = diagnostic(new Pose(0, 0))
             .withName("Localization Diagnostics")
@@ -38,19 +40,19 @@ public final class LocalizationDiagnostics {
             ctx.telemetry(telemetry);
 
             Drivetrain drivetrain = new Drivetrain(ctx);
-            CommandProcessSource processSource = Constants.createProcessSource();
-            MercurialLocalizer localizer = Constants.createFusedLocalizer(
-                    ctx.hardwareMap(), drivetrain.getInnerDrivetrain(), processSource);
-            FusedLocalizer fused = (FusedLocalizer) localizer.localizer();
+            PredictiveLocalizer<ControlInput> predictive = Constants.createFusedLocalizer(
+                    ctx.hardwareMap(), drivetrain.getInnerDrivetrain());
+            MercurialLocalizer localizer = new MercurialLocalizer(predictive);
+            FusedLocalizer fused = predictive.fusedLocalizer();
             localizer.setPose(startPose);
 
             localizer.addHandler(EventManager.forwardTo(
                     drivetrain, drivetrain::sendMotionState));
 
-            Telemetry.Item modeTelemetry = telemetry.addData(
-                    "Localization/Mode", modeName(processSource));
             Telemetry.Item fusedTelemetry = telemetry.addData(
                     "Localization/Fused", "waiting");
+            Telemetry.Item predictedTelemetry = telemetry.addData(
+                    "Localization/Predicted", "waiting");
             Telemetry.Item velocityTelemetry = telemetry.addData(
                     "Localization/Velocity", "waiting");
             Telemetry.Item covarianceTelemetry = telemetry.addData(
@@ -58,12 +60,13 @@ public final class LocalizationDiagnostics {
             Telemetry.Item decisionTelemetry = telemetry.addData(
                     "Localization/Last decision", "waiting");
             telemetry.addData("Localization/Controls",
-                    "A: toggle process, LB: field/robot centric, RB: slow");
+                    "LB: field/robot centric, RB: slow");
 
             localizer.addHandler(event -> {
                 Map<String, Object> debug = fused.debug();
                 fusedTelemetry.setValue(debug.get("pose"));
-                velocityTelemetry.setValue(Arrays.toString((double[]) debug.get("velocity")));
+                predictedTelemetry.setValue(predictive.predict(predictionHorizonSeconds).pose());
+                velocityTelemetry.setValue(debug.get("velocity"));
                 covarianceTelemetry.setValue(
                         Arrays.toString((double[]) debug.get("covarianceDiagonal")));
                 decisionTelemetry.setValue(debug.get("lastDecision"));
@@ -77,10 +80,6 @@ public final class LocalizationDiagnostics {
 
             EventManager.Handler<GamepadD.Delta> gamepadHandler =
                     GamepadD.gamepad1Handler(event -> {
-                        if (event.aWasPressed()) {
-                            processSource.setEnabled(!processSource.enabled());
-                            modeTelemetry.setValue(modeName(processSource));
-                        }
                         if (event.leftBumperWasPressed()) {
                             driveSettings.fieldCentric = !driveSettings.fieldCentric;
                             if (driveSettings.fieldCentric) drivetrain.fieldCentric();
@@ -103,7 +102,4 @@ public final class LocalizationDiagnostics {
         });
     }
 
-    private static String modeName(CommandProcessSource processSource) {
-        return processSource.enabled() ? "OctoQuad + process" : "OctoQuad only";
-    }
 }

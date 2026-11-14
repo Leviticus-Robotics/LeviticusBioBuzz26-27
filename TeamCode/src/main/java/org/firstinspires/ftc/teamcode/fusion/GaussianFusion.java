@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.fusion.core;
+package org.firstinspires.ftc.teamcode.fusion;
 
 import java.util.List;
 import org.ejml.simple.SimpleMatrix;
@@ -9,7 +9,31 @@ public final class GaussianFusion {
 
     /** Product of statistically independent Gaussian densities. */
     public static Gaussian product(List<Gaussian> gaussians) {
+        requireNonempty(gaussians);
         return sumInformation(gaussians).toGaussian();
+    }
+
+    /** One-solve Kalman-equivalent product of two independent Gaussian densities. */
+    public static Gaussian product(Gaussian first, Gaussian second) {
+        if (first == null || second == null
+                || first.dimension() != second.dimension()) {
+            throw new IllegalArgumentException("Gaussian dimensions do not match");
+        }
+        SimpleMatrix firstCovariance = first.covariance();
+        SimpleMatrix secondCovariance = second.covariance();
+        SimpleMatrix innovationCovariance = firstCovariance.plus(secondCovariance);
+        SimpleMatrix gain = MatrixOps.solve(
+                innovationCovariance, firstCovariance.transpose()).transpose();
+        SimpleMatrix residual = MatrixOps.column(second.mean())
+                .minus(MatrixOps.column(first.mean()));
+        double[] mean = MatrixOps.vector(
+                MatrixOps.column(first.mean()).plus(gain.mult(residual)));
+
+        SimpleMatrix identityMinusGain = SimpleMatrix.identity(first.dimension()).minus(gain);
+        SimpleMatrix covariance = identityMinusGain.mult(firstCovariance)
+                .mult(identityMinusGain.transpose())
+                .plus(gain.mult(secondCovariance).mult(gain.transpose()));
+        return new Gaussian(mean, MatrixOps.symmetrize(covariance));
     }
 
     /** Equal-weight logarithmic opinion pool for correlated observations. */

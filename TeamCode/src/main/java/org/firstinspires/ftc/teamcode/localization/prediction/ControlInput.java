@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.localization.core;
+package org.firstinspires.ftc.teamcode.localization.prediction;
 
 /** Applied robot-centric chassis commands. Contains no predicted motion. */
 public final class ControlInput {
@@ -8,7 +8,8 @@ public final class ControlInput {
     public final double turnPower;
 
     public ControlInput(double forwardPower, double strafePower, double turnPower) {
-        if (!Double.isFinite(forwardPower) || !Double.isFinite(strafePower) || !Double.isFinite(turnPower)) {
+        if (!Double.isFinite(forwardPower) || !Double.isFinite(strafePower)
+                || !Double.isFinite(turnPower)) {
             throw new IllegalArgumentException("control input must be finite");
         }
         this.forwardPower = forwardPower;

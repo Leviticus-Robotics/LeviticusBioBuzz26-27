@@ -6,6 +6,7 @@ import com.pedropathing.algorithm.ForesightConfig;
 import com.pedropathing.controllers.Controller;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.math.Matrix;
+import com.pedropathing.math.Pose;
 import com.pedropathing.math.Vector2D;
 import com.pedropathing.revhub.drivetrains.Mecanum;
 import com.pedropathing.revhub.drivetrains.MecanumConfig;
@@ -18,23 +19,13 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
-import org.firstinspires.ftc.teamcode.NanoClock;
-import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;
-import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
-import org.firstinspires.ftc.teamcode.localization.core.Pose2;
-import org.firstinspires.ftc.teamcode.localization.core.RobotState;
-import org.firstinspires.ftc.teamcode.localization.engine.PoseVelocityProcessModel;
+import org.firstinspires.ftc.teamcode.fusion.MatrixOps;
+import org.firstinspires.ftc.teamcode.localization.prediction.ControlInput;
+import org.firstinspires.ftc.teamcode.localization.prediction.PoseVelocityProcessModel;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusedLocalizer;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusionMecanumDrivetrain;
-import org.firstinspires.ftc.teamcode.localization.sensor.AutomaticFusionSource;
-import org.firstinspires.ftc.teamcode.localization.sensor.CommandProcessSource;
-import org.firstinspires.ftc.teamcode.localization.sensor.apriltag.AprilTagFrameProcessor;
-import org.firstinspires.ftc.teamcode.localization.sensor.octoquad.OctoQuadMotionAdapter;
-import org.firstinspires.ftc.teamcode.localization.sensor.octoquad.OctoQuadFusionSource;
-import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
-
-import java.util.Arrays;
-import java.util.List;
+import org.firstinspires.ftc.teamcode.localization.pedro.PredictiveLocalizer;
+import org.firstinspires.ftc.teamcode.localization.apriltag.AprilTagFrameProcessor;
 
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
@@ -45,18 +36,17 @@ public class Constants {
     public static PoseVelocityProcessModel.Config fusionProcessModelConfig =
             PoseVelocityProcessModel.Config.defaults();
     public static org.ejml.simple.SimpleMatrix fusionInitialCovariance =
-            MatrixOps.diagonal(4, 4, .25, 25, 25, 4);
-    // Per-tick variance for x, y, heading, vx, vy, omega. Corresponding standard
-    // deviations are .05 in, .05 in, .01 rad, .5 in/s, .5 in/s, and .1 rad/s.
-    public static org.ejml.simple.SimpleMatrix octoQuadMotionCovariance =
-            MatrixOps.diagonal(.0025, .0025, .0001, .25, .25, .01);
+            MatrixOps.diagonal(4, 4, .25);
+    // Pose variance accumulated per inch, inch, and radian of measured motion.
+    public static org.ejml.simple.SimpleMatrix octoQuadVariancePerUnit =
+            MatrixOps.diagonal(.0025, .0025, .0001);
     public static org.ejml.simple.SimpleMatrix aprilTagCovariance =
             MatrixOps.diagonal(2.25, 2.25, .04);
     public static org.ejml.simple.SimpleMatrix sharedCameraCovarianceFloor =
             MatrixOps.diagonal(.25, .25, .01);
     public static double aprilTagConsensusGateSquared = 16.27;
     public static double aprilTagDisagreementInflation = 1.0;
-    public static Pose2 fieldConventionTransform = Pose2.zero();
+    public static Pose fieldConventionTransform = Pose.zero();
     public static long fusionHistoryNanos = FusedLocalizer.DEFAULT_HISTORY_NANOS;
     public static int[] stationaryLocalizationTagIds = new int[0];
     public static MecanumConfig driveConfig = new MecanumConfig(
@@ -146,41 +136,26 @@ public class Constants {
     public static MercurialLocalizer createLocalizer(
             HardwareMap hardwareMap, FusionMecanumDrivetrain drivetrain) {
         if (!useFusedLocalization) return createLocalizer(hardwareMap);
-
-        return createFusedLocalizer(hardwareMap, drivetrain, createProcessSource());
+        return new MercurialLocalizer(createFusedLocalizer(hardwareMap, drivetrain));
     }
 
-    public static CommandProcessSource createProcessSource() {
-        return new CommandProcessSource(new PoseVelocityProcessModel(fusionProcessModelConfig));
-    }
-
-    /** Constructs fused localization while exposing its process source for diagnostic controls. */
-    public static MercurialLocalizer createFusedLocalizer(
-            HardwareMap hardwareMap, FusionMecanumDrivetrain drivetrain,
-            CommandProcessSource processSource) {
+    /** Builds pose fusion and wires drivetrain inputs into its non-feedback predictor. */
+    public static PredictiveLocalizer<ControlInput> createFusedLocalizer(
+            HardwareMap hardwareMap, FusionMecanumDrivetrain drivetrain) {
         if (hardwareMap == null) throw new IllegalArgumentException("hardware map is null");
         if (drivetrain == null) throw new IllegalArgumentException("drivetrain is null");
-        if (processSource == null) throw new IllegalArgumentException("process source is null");
-        OctoQuadFusionSource octoQuadSource = new OctoQuadFusionSource(
+        FusedLocalizer fused = new FusedLocalizer(
                 new OctoQuadLocalizer(hardwareMap, localizerConfig),
-                new OctoQuadMotionAdapter(
-                        octoQuadMotionCovariance));
-        drivetrain.addHandler(processSource);
-        return new MercurialLocalizer(createLocalizer(
-                Arrays.asList(processSource, octoQuadSource)));
-    }
-
-    /** Builds a fused localizer around an explicit source set, primarily for diagnostics. */
-    public static FusedLocalizer createLocalizer(
-            List<? extends AutomaticFusionSource> sources) {
-        NanoClock clock = NanoClock.SYSTEM;
-        long now = clock.now();
-        RobotState initial = RobotState.create(Pose2.zero(), 0, 0, 0,
-                fusionInitialCovariance);
-        FusionEngine engine = new FusionEngine(
-                initial.gaussian(), now, RobotState::normalize,
-                fusionHistoryNanos);
-        return new FusedLocalizer(engine, clock, fusionInitialCovariance, sources);
+                new FusedLocalizer.Config(
+                        fusionInitialCovariance,
+                        octoQuadVariancePerUnit,
+                        fusionHistoryNanos));
+        PredictiveLocalizer<ControlInput> predictive = new PredictiveLocalizer<>(
+                fused,
+                new PoseVelocityProcessModel(fusionProcessModelConfig),
+                ControlInput.ZERO);
+        drivetrain.addHandler(predictive);
+        return predictive;
     }
 
     public static AprilTagFrameProcessor createAprilTagProcessor() {

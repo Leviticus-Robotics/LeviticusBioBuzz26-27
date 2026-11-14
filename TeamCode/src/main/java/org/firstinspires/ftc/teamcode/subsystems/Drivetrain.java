@@ -11,7 +11,7 @@ import com.pedropathing.paths.PathTracker;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.Constants;
-import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
+import org.firstinspires.ftc.teamcode.localization.prediction.ControlInput;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusionMecanumDrivetrain;
 
 import dev.frozenmilk.dairy.mercurial.continuations.Continuation;

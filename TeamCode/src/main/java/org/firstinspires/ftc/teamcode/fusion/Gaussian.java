@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.fusion.core;
+package org.firstinspires.ftc.teamcode.fusion;
 
 import org.ejml.simple.SimpleMatrix;
 
@@ -8,8 +8,20 @@ public final class Gaussian {
     private final SimpleMatrix covariance;
 
     public Gaussian(double[] mean, SimpleMatrix covariance) {
-        this.mean = MatrixOps.copyVector(mean, "mean");
-        this.covariance = MatrixOps.requirePositiveDefinite(covariance, mean.length, "covariance");
+        if (mean == null || mean.length == 0 || covariance == null
+                || covariance.numRows() != mean.length
+                || covariance.numCols() != mean.length) {
+            throw new IllegalArgumentException("Gaussian dimensions do not match");
+        }
+        this.mean = mean.clone();
+        this.covariance = covariance.copy();
+    }
+
+    /** Performs finite-value and positive-definite checks at an external boundary. */
+    public Gaussian validate() {
+        MatrixOps.copyVector(mean, "mean");
+        MatrixOps.requirePositiveDefinite(covariance, mean.length, "covariance");
+        return this;
     }
 
     public int dimension() { return mean.length; }
