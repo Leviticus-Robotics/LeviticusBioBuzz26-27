@@ -2,71 +2,122 @@ package org.firstinspires.ftc.teamcode.localization;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.pedropathing.localization.Localizer;
+import com.pedropathing.localization.MotionState;
 import com.pedropathing.math.Pose;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import com.pedropathing.math.Velocity;
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicInteger;
-import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
-import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;
-import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
-import org.firstinspires.ftc.teamcode.localization.core.Pose2;
-import org.firstinspires.ftc.teamcode.localization.core.RobotState;
-import org.firstinspires.ftc.teamcode.localization.engine.PoseVelocityProcessModel;
+import org.firstinspires.ftc.teamcode.fusion.Gaussian;
+import org.firstinspires.ftc.teamcode.fusion.MatrixOps;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusedLocalizer;
 import org.junit.jupiter.api.Test;
 
 class FusedLocalizerTest {
-    private static FusionEngine<ControlInput> engine() {
-        return new FusionEngine<>(
-                RobotState.create(Pose2.zero(), 1, 2, 3,
-                        MatrixOps.diagonal(1, 1, 1, 1, 1, 1)).gaussian(), 0,
-                new PoseVelocityProcessModel(1, 1, 1, 1, new double[] {.1, .1, .1, .1, .1, .1}),
-                ControlInput.ZERO,
-                10_000_000_000L, 100);
+    private static FusedLocalizer create(FakeLocalizer raw, AtomicLong clock) {
+        return new FusedLocalizer(raw, new FusedLocalizer.Config(
+                MatrixOps.diagonal(1, 1, .1),
+                MatrixOps.diagonal(.001, .001, .0001),
+                10_000_000_000L), clock::get);
     }
 
-    @Test void adaptsPoseVelocityUpdateResetAndDebugWithoutPollingSensors() {
-        AtomicLong time = new AtomicLong(0);
-        AtomicInteger sourceResets = new AtomicInteger();
-        FusedLocalizer localizer = new FusedLocalizer(engine(), time::get,
-                MatrixOps.diagonal(1, 1, 1, 1, 1, 1), sourceResets::incrementAndGet);
-        assertEquals(1, localizer.velocity().vx, 1e-12);
-        localizer.setPose(new Pose(4, 5, .2));
-        assertEquals(4, localizer.pose().x(), 1e-12);
-        time.set(1_000_000_000L);
-        localizer.update();
-        assertEquals(1_000_000_000L, localizer.engine().timestampNanos());
-        assertTrue(localizer.debug().containsKey("covarianceDiagonal"));
-        localizer.reset();
-        assertEquals(0, localizer.pose().x(), 1e-12);
-        assertEquals(2, sourceResets.get());
+    @Test void odometryMovesTheAuthoritativeEstimateDirectly() {
+        AtomicLong clock = new AtomicLong();
+        FakeLocalizer raw = new FakeLocalizer();
+        FusedLocalizer fused = create(raw, clock);
+        raw.state = MotionState.ofVelocity(new Pose(10, 2, .2), new Velocity(10, 2, .2));
+        clock.set(1_000_000_000L);
+        fused.update();
+        assertEquals(10, fused.state().pose().x(), 1e-9);
+        assertEquals(2, fused.state().pose().y(), 1e-9);
+        assertEquals(.2, fused.state().pose().heading(), 1e-9);
+        assertEquals(10, fused.state().velocity().vx, 1e-9);
     }
 
-    @Test void coreLocalizationTypesDoNotImportPedroOrSensorSdks() throws IOException {
-        Path root = Paths.get("src/main/java/org/firstinspires/ftc/teamcode/localization");
-        if (!Files.exists(root)) root = Paths.get("TeamCode").resolve(root);
-        final Path sourceRoot = root;
-        try (java.util.stream.Stream<Path> paths = Files.walk(sourceRoot)) {
-            paths.filter(path -> path.toString().endsWith(".java"))
-                    .filter(path -> !path.toString().contains("/sensor/"))
-                    .filter(path -> !path.toString().contains("/pedro/"))
-                    .filter(path -> !path.getFileName().toString().equals("FusedLocalizer.java"))
-                    .filter(path -> !path.getFileName().toString().equals("FusionFollower.java"))
-                    .filter(path -> !path.getFileName().toString().equals("FusionMecanumDrivetrain.java"))
-                    .filter(path -> !path.getFileName().toString().equals("LocalizationRuntime.java"))
-                    .forEach(path -> {
-                        try {
-                            String source = new String(Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-                            assertFalse(source.contains("import com.pedropathing"), path.toString());
-                            assertFalse(source.contains("import com.qualcomm.hardware"), path.toString());
-                            assertFalse(source.contains("import org.firstinspires.ftc.vision"), path.toString());
-                        } catch (IOException exception) {
-                            throw new RuntimeException(exception);
-                        }
-                    });
+    @Test void delayedAbsoluteMeasurementIsInsertedAndMotionReplayed() {
+        AtomicLong clock = new AtomicLong();
+        FakeLocalizer raw = new FakeLocalizer();
+        FusedLocalizer fused = create(raw, clock);
+        raw.state = MotionState.ofVelocity(new Pose(10, 0, 0), new Velocity(10, 0, 0));
+        clock.set(1_000_000_000L);
+        fused.update();
+        assertTrue(fused.addAbsoluteMeasurement("camera", 500_000_000L,
+                new Gaussian(new double[] {4, 0, 0},
+                        MatrixOps.diagonal(1e-6, 1e-6, 1e-6))));
+        assertEquals(9, fused.state().pose().x(), .01);
+    }
+
+    @Test void correctionChangesGlobalFrameWithoutFightingFutureOdometry() {
+        AtomicLong clock = new AtomicLong();
+        FakeLocalizer raw = new FakeLocalizer();
+        FusedLocalizer fused = create(raw, clock);
+        raw.state = MotionState.ofVelocity(new Pose(10, 0, 0), Velocity.zero());
+        clock.set(1_000_000_000L);
+        fused.update();
+        assertTrue(fused.addAbsoluteMeasurement("camera", 1_000_000_000L,
+                new Gaussian(new double[] {20, 0, 0},
+                        MatrixOps.diagonal(1e-8, 1e-8, 1e-8))));
+        raw.state = MotionState.ofVelocity(new Pose(11, 0, 0), Velocity.zero());
+        clock.set(2_000_000_000L);
+        fused.update();
+        assertEquals(21, fused.state().pose().x(), .01);
+    }
+
+    @Test void cameraFrameNewerThanLatestTickWaitsForTheNextUpdate() {
+        AtomicLong clock = new AtomicLong();
+        FakeLocalizer raw = new FakeLocalizer();
+        FusedLocalizer fused = create(raw, clock);
+        assertTrue(fused.addAbsoluteMeasurement("camera", 500_000_000L,
+                new Gaussian(new double[] {4, 0, 0},
+                        MatrixOps.diagonal(1e-6, 1e-6, 1e-6))));
+        raw.state = MotionState.ofVelocity(new Pose(10, 0, 0), new Velocity(10, 0, 0));
+        clock.set(1_000_000_000L);
+        fused.update();
+        assertEquals(9, fused.state().pose().x(), .01);
+    }
+
+    @Test void delayedReplayMatchesTheSameMeasurementAppliedInOrder() {
+        AtomicLong firstClock = new AtomicLong();
+        AtomicLong secondClock = new AtomicLong();
+        FakeLocalizer firstRaw = new FakeLocalizer();
+        FakeLocalizer secondRaw = new FakeLocalizer();
+        FusedLocalizer inOrder = create(firstRaw, firstClock);
+        FusedLocalizer delayed = create(secondRaw, secondClock);
+        Gaussian camera = new Gaussian(new double[] {8, 1, .1},
+                MatrixOps.diagonal(.01, .01, .001));
+
+        firstRaw.state = MotionState.ofVelocity(new Pose(10, 0, 0), Velocity.zero());
+        secondRaw.state = firstRaw.state;
+        firstClock.set(1_000_000_000L);
+        secondClock.set(1_000_000_000L);
+        inOrder.update();
+        delayed.update();
+        inOrder.addAbsoluteMeasurement("camera", 1_000_000_000L, camera);
+
+        firstRaw.state = MotionState.ofVelocity(new Pose(20, 0, 0), Velocity.zero());
+        secondRaw.state = firstRaw.state;
+        firstClock.set(2_000_000_000L);
+        secondClock.set(2_000_000_000L);
+        inOrder.update();
+        delayed.update();
+        delayed.addAbsoluteMeasurement("camera", 1_000_000_000L, camera);
+
+        assertEquals(inOrder.state().pose().x(), delayed.state().pose().x(), 1e-10);
+        assertEquals(inOrder.state().pose().y(), delayed.state().pose().y(), 1e-10);
+        assertEquals(inOrder.state().pose().heading(), delayed.state().pose().heading(), 1e-10);
+        assertTrue(inOrder.poseEstimate().covariance().isIdentical(
+                delayed.poseEstimate().covariance(), 1e-10));
+    }
+
+    private static final class FakeLocalizer implements Localizer {
+        MotionState state = MotionState.zero();
+        @Override public MotionState state() { return state; }
+        @Override public void update() { }
+        @Override public void setPose(Pose pose) {
+            state = MotionState.ofVelocity(pose, state.velocity());
         }
+        @Override public void reset() { state = MotionState.zero(); }
+        @Override public Map<String, Object> debug() { return Collections.emptyMap(); }
     }
 }

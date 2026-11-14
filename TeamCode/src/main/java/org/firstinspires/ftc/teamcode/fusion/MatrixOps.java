@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.fusion.core;
+package org.firstinspires.ftc.teamcode.fusion;
 
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.factory.DecompositionFactory_DDRM;

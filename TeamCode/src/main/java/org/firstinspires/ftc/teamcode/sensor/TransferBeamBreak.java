@@ -63,7 +63,7 @@ public class TransferBeamBreak extends EventManager<TransferBeamBreak.BeamBreakE
     }
 
     public boolean isInterrupted(DigitalChannel sensor){
-        return sensor.getState();
+        return !sensor.getState();
     }
 
     public boolean getBreaker1Interrupted(){

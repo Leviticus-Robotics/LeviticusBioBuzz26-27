@@ -99,7 +99,7 @@ public class RobotCombined {
         });
 
 
-        //send transfer beam breakers to transfer
+        //send transfer xbeam breakers to transfer
         transferSensors = new TransferBeamBreak(ctx);
         transferSensors.addHandler(event -> {
             if(event.sensorNum == 1){

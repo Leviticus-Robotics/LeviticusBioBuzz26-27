@@ -1,12 +1,20 @@
 package org.firstinspires.ftc.teamcode.util;
 
 public class Range {
-    public double low, high;
+    private final double low;
+    private final double high;
 
     public Range(double low, double high) {
+        if (!Double.isFinite(low) || !Double.isFinite(high)) {
+            throw new IllegalArgumentException("range bounds must be finite");
+        }
+        if (low == high) throw new IllegalArgumentException("range must have non-zero width");
         this.low = Math.min(low, high);
         this.high = Math.max(low, high);
     }
+
+    public double low() { return low; }
+    public double high() { return high; }
 
     public double getValueRatio(double value) {
         return (value - low) / (high - low);
@@ -17,6 +25,7 @@ public class Range {
     }
 
     public double toRange(double value, Range newRange) {
+        if (newRange == null) throw new IllegalArgumentException("target range is null");
         double ratio = this.getValueRatio(value);
         return newRange.getValueFromRatio(ratio);
     }
