@@ -16,8 +16,8 @@ import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 
 public class TransferBeamBreak extends EventManager<TransferBeamBreak.BeamBreakEvent> {
     //if the beam between receiver/trnsmitter is broken (meaning object detected) or unbroken (meaning no object detected)
-    DigitalChannel breaker1;//most inward spot
-    DigitalChannel breaker2;
+    DigitalChannel breaker1;//closest to shooter
+    DigitalChannel breaker2;//farther from shooter
     boolean prevBreaker1Interrupted;
     boolean prevBreaker2Interrupted;
     private Telemetry.Item breaker1Telemetry;

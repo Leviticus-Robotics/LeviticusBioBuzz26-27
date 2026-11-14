@@ -34,15 +34,15 @@ public class TransferGate extends SwitchedStateMachine {
 //        servo.setPwm(PwmControl.PwmRange.defaultRange);//can alter pwm range like so
 //        servo.setCachingTolerance(0.0001); //can alter caching tolerance like so
 
-        stateTelemetry = ctx.telemetry().addData("TransferGate/State", "unknown");
+        stateTelemetry = ctx.telemetry().addData("TransferGate/State", "Unknown");
         //start from this mode
         open = entranceMode(from -> {
-            stateTelemetry.setValue("inactive");
+            stateTelemetry.setValue("Inactive");
             servo.set(OPEN_POSITION);
         });
 
         closed = entranceMode(self -> {
-            stateTelemetry.setValue("active");
+            stateTelemetry.setValue("Active");
             servo.set(CLOSED_POSITION);
         });
     }

@@ -63,6 +63,10 @@ public class Transfer extends MotorSubsystem {
         return breaker1Detection && breaker2Detection;
     }
 
+    private boolean detectFirstBall(){
+        return breaker1Detection;
+    }
+
 
     //run target velocity on till detect two balls, then turn off transfer
     public Mode runVelTillDetectionMode(double targetVelocity){
@@ -71,7 +75,7 @@ public class Transfer extends MotorSubsystem {
             motor.setRunMode(MotorEx.RunMode.VelocityControl);
             motor.set(targetVelocity, currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
             //keep it simple for now assuming breakers working
-            boolean currDetected = detectTwoBalls();
+            boolean currDetected = detectFirstBall();
 
             if(currDetected){
                 motor.set(0);
@@ -92,7 +96,7 @@ public class Transfer extends MotorSubsystem {
             motor.setRunMode(MotorEx.RunMode.RawPower);
             motor.set(power);
             //keep it simple for now assuming breakers working
-            boolean currDetected = detectTwoBalls();
+            boolean currDetected = detectFirstBall();
 
             if(currDetected){
                 motor.set(0);
