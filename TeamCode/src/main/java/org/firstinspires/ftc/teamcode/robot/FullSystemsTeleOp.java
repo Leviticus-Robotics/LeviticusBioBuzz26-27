@@ -29,7 +29,7 @@ public class FullSystemsTeleOp {
 
 
 
-    public static final MercurialFTC.RegisterableProgram SystemTesting = teleOp(new Pose(0, 0), ALLIANCE.RED, HiveTargetSide.CLOSE)
+    public static final MercurialFTC.RegisterableProgram SystemTesting = teleOp(new Pose(0, 0), ALLIANCE.RED, HiveTargetSide.Right)
             .withName("Full Test")
             .withGroup("Testing");
 
@@ -122,9 +122,9 @@ public class FullSystemsTeleOp {
                     EventManager.Handler<GamepadD.Delta> shootingSideHandler =
                             GamepadD.gamepad1Handler(event -> {
                                         if (event.leftBumperWasPressed()) {
-                                            r.sideMachine.setSide(HiveTargetSide.CLOSE);
+                                            r.sideMachine.setSide(HiveTargetSide.Right);
                                         } else if (event.leftTriggerOver(0.3)) {
-                                            r.sideMachine.setSide(HiveTargetSide.Far);
+                                            r.sideMachine.setSide(HiveTargetSide.Left);
                                         }
                                         return EventManager.EventHandled.ok();
                                     }
