@@ -7,38 +7,26 @@ import com.pedropathing.revhub.drivetrains.MecanumConfig;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import java.util.Map;
-import org.firstinspires.ftc.teamcode.localization.LocalizationRuntime;
-import org.firstinspires.ftc.teamcode.localization.core.ControlInput;
+import org.firstinspires.ftc.teamcode.localization.prediction.ControlInput;
+import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 
-/** Mecanum drivetrain that records the motor powers Pedro actually applied. */
-public final class FusionMecanumDrivetrain implements Drivetrain {
-    private final LocalizationRuntime runtime;
+/** Mecanum drivetrain that publishes the motor powers Pedro actually applied. */
+public final class FusionMecanumDrivetrain extends EventManager<ControlInput>
+        implements Drivetrain {
     private final Mecanum drivetrain;
     private final DcMotorEx frontLeftMotor;
     private final DcMotorEx frontRightMotor;
     private final DcMotorEx backLeftMotor;
     private final DcMotorEx backRightMotor;
-    private final boolean pollSensorBeforeDrive;
-
-    public FusionMecanumDrivetrain(LocalizationRuntime runtime,
-                                   HardwareMap hardwareMap, MecanumConfig config) {
-        this(runtime, hardwareMap, config, false);
-    }
-
-    public FusionMecanumDrivetrain(LocalizationRuntime runtime,
-                                   HardwareMap hardwareMap, MecanumConfig config,
-                                   boolean pollSensorBeforeDrive) {
-        this.runtime = runtime;
+    public FusionMecanumDrivetrain(HardwareMap hardwareMap, MecanumConfig config) {
         this.drivetrain = new Mecanum(hardwareMap, config);
         this.frontLeftMotor = hardwareMap.get(DcMotorEx.class, config.frontLeftName.get());
         this.frontRightMotor = hardwareMap.get(DcMotorEx.class, config.frontRightName.get());
         this.backLeftMotor = hardwareMap.get(DcMotorEx.class, config.backLeftName.get());
         this.backRightMotor = hardwareMap.get(DcMotorEx.class, config.backRightName.get());
-        this.pollSensorBeforeDrive = pollSensorBeforeDrive;
     }
 
     @Override public void drive(DrivePowers powers, boolean manual) {
-        if (pollSensorBeforeDrive) runtime.updateOctoQuad();
         drivetrain.drive(powers, manual);
         recordAppliedMotorPowers();
     }
@@ -48,13 +36,11 @@ public final class FusionMecanumDrivetrain implements Drivetrain {
     }
 
     @Override public void stop() {
-        if (pollSensorBeforeDrive) runtime.updateOctoQuad();
         drivetrain.stop();
         recordAppliedMotorPowers();
     }
 
     @Override public void stop(boolean brake) {
-        if (pollSensorBeforeDrive) runtime.updateOctoQuad();
         drivetrain.stop(brake);
         recordAppliedMotorPowers();
     }
@@ -69,7 +55,7 @@ public final class FusionMecanumDrivetrain implements Drivetrain {
         ControlInput input = fromWheelPowers(
                 frontLeftMotor.getPower(), frontRightMotor.getPower(),
                 backLeftMotor.getPower(), backRightMotor.getPower());
-        runtime.setDriveInput(input.forwardPower, input.strafePower, input.turnPower);
+        notify(input);
     }
 
     static ControlInput fromWheelPowers(double frontLeft, double frontRight,

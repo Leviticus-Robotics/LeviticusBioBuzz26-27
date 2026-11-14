@@ -35,8 +35,8 @@ public class FullSystemsTeleOp {
 
     public static MercurialFTC.RegisterableProgram teleOp(Pose startPose, ALLIANCE alliance, HiveTargetSide startSide) {
         return MercurialFTC.teleop(ctx -> {
-                    RobotCombined r = new RobotCombined(ctx, startSide);
-                    r.localizer.setPose(startPose);
+            RobotCombined r = new RobotCombined(ctx, startSide);
+            r.localizer.setPose(startPose);
 
                     //spawns a spawnable to reset turret encoder position from absolute & set turret to center
                     Spawnable<?> program = expression((scope, self) -> {

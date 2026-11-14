@@ -7,80 +7,166 @@ import com.pedropathing.math.Velocity;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.ejml.simple.SimpleMatrix;
-import org.firstinspires.ftc.teamcode.fusion.core.MatrixOps;
-import org.firstinspires.ftc.teamcode.fusion.engine.FusionDiagnostics;
-import org.firstinspires.ftc.teamcode.fusion.engine.FusionEngine;
+import org.firstinspires.ftc.teamcode.fusion.Gaussian;
+import org.firstinspires.ftc.teamcode.fusion.MatrixOps;
 import org.firstinspires.ftc.teamcode.helper.NanoClock;
-import org.firstinspires.ftc.teamcode.localization.core.Pose2;
-import org.firstinspires.ftc.teamcode.localization.core.RobotState;
+import org.firstinspires.ftc.teamcode.localization.prediction.LocalizationHistory;
+import org.firstinspires.ftc.teamcode.localization.prediction.OdometryModel;
+import org.firstinspires.ftc.teamcode.localization.prediction.PoseEstimate;
 
-/** Pedro output boundary. Sensor polling deliberately lives in LocalizationRuntime. */
+/** Pedro localizer that adds Gaussian absolute corrections and delayed replay. */
 public final class FusedLocalizer implements Localizer {
-    private final FusionEngine<?> engine;
+    public static final long DEFAULT_HISTORY_NANOS = 2_000_000_000L;
+
+    private final Localizer deadReckoning;
     private final NanoClock clock;
-    private final SimpleMatrix resetCovariance;
-    private final Runnable resetRelativeSources;
+    private final Config config;
+    private final OdometryModel odometryModel;
+    private LocalizationHistory history;
+    private Pose currentRawPose;
+    private MotionState motionState;
+    private long lastUpdateNanos;
+    private String lastDecision = "initialized";
 
-    public FusedLocalizer(FusionEngine<?> engine, NanoClock clock, SimpleMatrix resetCovariance) {
-        this(engine, clock, resetCovariance, () -> { });
+    public FusedLocalizer(Localizer deadReckoning, Config config) {
+        this(deadReckoning, config, NanoClock.SYSTEM);
     }
 
-    public FusedLocalizer(FusionEngine<?> engine, NanoClock clock, SimpleMatrix resetCovariance,
-                          Runnable resetRelativeSources) {
-        this.engine = engine;
+    public FusedLocalizer(Localizer deadReckoning, Config config, NanoClock clock) {
+        if (deadReckoning == null) throw new IllegalArgumentException("localizer is null");
+        if (config == null) throw new IllegalArgumentException("config is null");
+        if (clock == null) throw new IllegalArgumentException("clock is null");
+        this.deadReckoning = deadReckoning;
+        this.config = config;
         this.clock = clock;
-        this.resetCovariance = MatrixOps.requirePositiveDefinite(
-                resetCovariance, RobotState.DIMENSION, "reset covariance");
-        if (resetRelativeSources == null) throw new IllegalArgumentException("reset callback is null");
-        this.resetRelativeSources = resetRelativeSources;
+        odometryModel = new OdometryModel(config.odometryVariancePerUnit);
+
+        MotionState initial = deadReckoning.state();
+        if (initial == null) initial = MotionState.zero();
+        long now = clock.now();
+        currentRawPose = initial.pose();
+        motionState = initial;
+        lastUpdateNanos = now;
+        history = createHistory(now, initial.pose(), initial.velocity());
     }
 
-    @Override public void setPose(Pose pose) {
-        RobotState previous = new RobotState(engine.state());
-        reset(RobotState.create(new Pose2(pose.x(), pose.y(), pose.heading()),
-                previous.vx(), previous.vy(), previous.omega(), resetCovariance));
+    @Override public synchronized MotionState state() { return motionState; }
+
+    public synchronized Gaussian poseEstimate() {
+        return history.latestEstimate().gaussian();
     }
 
-    @Override public MotionState state() {
-        RobotState state = new RobotState(engine.state());
-        Pose2 pose = state.pose();
-        return MotionState.ofVelocity(new Pose(pose.x(), pose.y(), pose.heading()),
-                new Velocity(state.vx(), state.vy(), state.omega()));
+    public synchronized long timestampNanos() {
+        return history.latestTimestampNanos();
     }
 
-    @Override public void update() { engine.predictTo(clock.now()); }
+    @Override public synchronized void update() {
+        deadReckoning.update();
+        MotionState rawState = deadReckoning.state();
+        if (rawState == null) return;
+        long now = clock.now();
+        if (now <= lastUpdateNanos) return;
 
-    @Override public void reset() {
-        reset(RobotState.create(Pose2.zero(), 0, 0, 0, resetCovariance));
+        Pose rawPose = rawState.pose();
+        Pose relativeTransform = currentRawPose.invert().compose(rawPose);
+        history.advance(now, relativeTransform, rawState.velocity());
+        currentRawPose = rawPose;
+        lastUpdateNanos = now;
+        publishLatest();
+        lastDecision = "odometry propagated";
     }
 
-    private void reset(RobotState state) {
-        resetRelativeSources.run();
-        engine.resetState(state.gaussian(), clock.now());
+    /** Adds a validated full field-pose Gaussian at its acquisition timestamp. */
+    public synchronized boolean addAbsoluteMeasurement(
+            String source, long timestampNanos, Gaussian measurement) {
+        if (source == null || source.isEmpty()) {
+            throw new IllegalArgumentException("measurement source is empty");
+        }
+        if (measurement == null || measurement.dimension() != 3) {
+            throw new IllegalArgumentException("absolute pose measurement must be 3D");
+        }
+        measurement.validate();
+        LocalizationHistory.MeasurementResult result =
+                history.addAbsolute(source, timestampNanos, measurement);
+        if (result.stateChanged) publishLatest();
+        lastDecision = result.description;
+        return result.accepted;
     }
 
-    @Override public Map<String, Object> debug() {
-        FusionDiagnostics<?> diagnostics = engine.diagnostics();
-        RobotState state = new RobotState(engine.state());
+    @Override public synchronized void setPose(Pose pose) {
+        if (pose == null) throw new IllegalArgumentException("pose is null");
+        deadReckoning.setPose(pose);
+        Velocity velocity = motionState == null
+                ? Velocity.zero() : motionState.velocity();
+        resetHistory(pose, velocity);
+    }
+
+    @Override public synchronized void reset() {
+        deadReckoning.reset();
+        MotionState raw = deadReckoning.state();
+        if (raw == null) raw = MotionState.zero();
+        resetHistory(raw.pose(), raw.velocity());
+    }
+
+    @Override public synchronized Map<String, Object> debug() {
+        Gaussian pose = poseEstimate();
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("pose", state.pose());
-        result.put("velocity", new double[] {state.vx(), state.vy(), state.omega()});
-        result.put("covarianceDiagonal", covarianceDiagonal(state.covariance()));
-        result.put("activeInput", diagnostics.activeInput);
-        result.put("historyEvents", diagnostics.historyEventCount);
-        result.put("recomputationNanos", diagnostics.lastRecomputationDurationNanos);
-        result.put("acceptedFactors", diagnostics.acceptedFactorCount);
-        result.put("rejectedFactors", diagnostics.rejectedFactorCount);
-        result.put("latestSourceTimestamps", diagnostics.latestSourceTimestamps);
-        result.put("lastDecision", diagnostics.lastDecision);
+        result.put("pose", motionState.pose());
+        result.put("velocity", motionState.velocity());
+        result.put("covarianceDiagonal", new double[] {
+                pose.covariance().get(0, 0),
+                pose.covariance().get(1, 1),
+                pose.covariance().get(2, 2)
+        });
+        result.put("historyItems", history.size());
+        result.put("pendingMeasurements", history.pendingCount());
+        result.put("lastDecision", lastDecision);
         return result;
     }
 
-    private static double[] covarianceDiagonal(SimpleMatrix covariance) {
-        double[] result = new double[covariance.numRows()];
-        for (int i = 0; i < result.length; i++) result[i] = covariance.get(i, i);
-        return result;
+    public Localizer deadReckoning() { return deadReckoning; }
+
+    private LocalizationHistory createHistory(
+            long timestampNanos, Pose pose, Velocity velocity) {
+        return new LocalizationHistory(
+                timestampNanos,
+                PoseEstimate.at(pose, config.initialCovariance),
+                velocity,
+                odometryModel,
+                config.maximumHistoryNanos);
     }
 
-    public FusionEngine<?> engine() { return engine; }
+    private void publishLatest() {
+        motionState = MotionState.ofVelocity(
+                history.latestEstimate().pose(), history.latestVelocity());
+    }
+
+    private void resetHistory(Pose pose, Velocity velocity) {
+        long now = clock.now();
+        currentRawPose = pose;
+        history = createHistory(now, pose, velocity);
+        lastUpdateNanos = now;
+        motionState = MotionState.ofVelocity(pose, velocity);
+        lastDecision = "state reset";
+    }
+
+    /** Immutable pose-filter configuration. */
+    public static final class Config {
+        private final SimpleMatrix initialCovariance;
+        private final SimpleMatrix odometryVariancePerUnit;
+        private final long maximumHistoryNanos;
+
+        public Config(SimpleMatrix initialCovariance,
+                      SimpleMatrix odometryVariancePerUnit,
+                      long maximumHistoryNanos) {
+            this.initialCovariance = MatrixOps.requirePositiveDefinite(
+                    initialCovariance, 3, "initial pose covariance");
+            this.odometryVariancePerUnit = MatrixOps.requirePositiveDefinite(
+                    odometryVariancePerUnit, 3, "odometry variance per unit");
+            if (maximumHistoryNanos <= 0) {
+                throw new IllegalArgumentException("history duration must be positive");
+            }
+            this.maximumHistoryNanos = maximumHistoryNanos;
+        }
+    }
 }

@@ -15,7 +15,9 @@ public class IncrementalEncoder {
     public final DcMotorEx encoder;
     private final double cpr;
     private int lastPosition;
-    private double lastTimeStamp, veloEstimate, dpp, accel, lastVelo;
+    private double positionTimestamp;
+    private double velocityTimestamp;
+    private double veloEstimate, dpp, accel, lastVelo;
 
     private double offset = 0.0;
     private RotationDirection direction = RotationDirection.FORWARD;
@@ -30,7 +32,7 @@ public class IncrementalEncoder {
      */
     public IncrementalEncoder(HardwareMap hwMap, String id, double countsPerRevolution, AngleUnit angleUnit) {
         this(hwMap.get(DcMotorEx.class, id), countsPerRevolution, angleUnit);
-        encoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        resetEncoder();
     }
 
 
@@ -45,9 +47,11 @@ public class IncrementalEncoder {
         this.cpr = countsPerRevolution;
         this.angleUnit = angleUnit;
         dpp = 1;
-        lastPosition = 0;
+        lastPosition = encoder.getCurrentPosition();
         veloEstimate = 0;
-        lastTimeStamp = (double) System.nanoTime() / 1E9;
+        lastVelo = encoder.getVelocity();
+        positionTimestamp = secondsNow();
+        velocityTimestamp = positionTimestamp;
     }
 
     /**
@@ -56,12 +60,12 @@ public class IncrementalEncoder {
     public int getPosition() {
         int currentPosition = encoder.getCurrentPosition();
         double currentTime = (double) System.nanoTime() / 1E9;
-        if (currentPosition != lastPosition) {
-            double dt = currentTime - lastTimeStamp;
+        double dt = currentTime - positionTimestamp;
+        if (dt > 0) {
             veloEstimate = (currentPosition - lastPosition) / dt;
-            lastPosition = currentPosition;
         }
-        lastTimeStamp = currentTime;
+        lastPosition = currentPosition;
+        positionTimestamp = currentTime;
         return getDirectionMultiplier() * currentPosition - (int) offset;
     }
 
@@ -108,13 +112,13 @@ public class IncrementalEncoder {
      */
     public double getRawVelocity() {
         double velo = ((DcMotorEx) encoder).getVelocity();
-        if (velo != lastVelo) {
-            double currentTime = (double) System.nanoTime() / 1E9;
-            double dt = currentTime - lastTimeStamp;
+        double currentTime = secondsNow();
+        double dt = currentTime - velocityTimestamp;
+        if (dt > 0) {
             accel = (velo - lastVelo) / dt;
-            lastVelo = velo;
-            lastTimeStamp = currentTime;
         }
+        lastVelo = velo;
+        velocityTimestamp = currentTime;
         return velo;
     }
 
@@ -207,10 +211,21 @@ public class IncrementalEncoder {
 
     //different from resetting offset, directly resets motor count to zero
     public void resetEncoder(){
-        encoder.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        encoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         encoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        lastPosition = 0;
+        veloEstimate = 0;
+        lastVelo = 0;
+        accel = 0;
+        positionTimestamp = secondsNow();
+        velocityTimestamp = positionTimestamp;
+        offset = 0;
     }
     public void resetOffset() {
         this.offset = 0;
+    }
+
+    private static double secondsNow() {
+        return System.nanoTime() / 1E9;
     }
 }
