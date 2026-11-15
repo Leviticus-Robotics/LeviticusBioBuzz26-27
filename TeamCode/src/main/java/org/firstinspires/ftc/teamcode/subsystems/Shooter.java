@@ -17,7 +17,6 @@ import com.seattlesolvers.solverslib.util.MathUtils;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
-import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 import org.firstinspires.ftc.teamcode.util.Angle;
@@ -51,10 +50,10 @@ public class Shooter extends SwitchedStateMachine {
 
 //    public static boolean DIRECTION_REVERSE = false;
 
-    public static Pose AIM_BLUE_CLOSE = new Pose(61, 55);
-    public static Pose AIM_BLUE_FAR = new Pose(61, 67);
-    public static Pose AIM_RED_CLOSE = new Pose(141.5 - 61, 55);
-    public static Pose AIM_RED_FAR = new Pose(141.5 - 61, 67);
+    public static Pose AIM_BLUE_RIGHT = new Pose(61, 55);
+    public static Pose AIM_BLUE_LEFT = new Pose(61, 67);
+    public static Pose AIM_RED_RIGHT = new Pose(141.5 - 61, 55);
+    public static Pose AIM_RED_LEFT = new Pose(141.5 - 61, 67);
     public double currentVoltage;
     private double currentTargetVelocity;//velocity that is currently being sent to the motors
     private double shootingTargetVelocity;//desired velocity for shooting (not default velocity)
@@ -398,9 +397,9 @@ public class Shooter extends SwitchedStateMachine {
 
     public Pose getPose(ALLIANCE alliance, HiveTargetSide side){
         if(alliance == ALLIANCE.BLUE){
-            return side == HiveTargetSide.CLOSE ? AIM_BLUE_CLOSE : AIM_BLUE_FAR;
+            return side == HiveTargetSide.Right ? AIM_BLUE_RIGHT : AIM_BLUE_LEFT;
         } else{
-            return side == HiveTargetSide.CLOSE ? AIM_RED_CLOSE : AIM_RED_FAR;
+            return side == HiveTargetSide.Right ? AIM_RED_RIGHT : AIM_RED_LEFT;
         }
     }
 
@@ -444,7 +443,7 @@ public class Shooter extends SwitchedStateMachine {
         MotionState motionState = motionStates.query();
         if(motionState == null) return false;
         Pose robotPose = motionState.pose();
-        if(side == HiveTargetSide.CLOSE){
+        if(side == HiveTargetSide.Right){
             if(robotPose.y() <= (WITHIN_SHOOTING_RANGE[0] * robotPose.x() + WITHIN_SHOOTING_RANGE[1]) && robotPose.y() <= (WITHIN_SHOOTING_RANGE[2] * robotPose.x() + WITHIN_SHOOTING_RANGE[3])){
                 return true;
             }

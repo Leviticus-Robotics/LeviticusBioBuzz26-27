@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.game;
 
+/** Left and Right are defined from the POV of the red/blue driver areas **/
 public enum HiveTargetSide {
-    CLOSE,//audience side
-    Far//non-audience side
+    Left,
+    Right
 }
