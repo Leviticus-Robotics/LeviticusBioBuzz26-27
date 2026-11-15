@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.subsystemTesting;
 
 import com.acmerobotics.dashboard.config.Config;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Transfer;
 import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
@@ -26,7 +28,6 @@ public class IntakeTransferTest {
                     Intake intake = new Intake(ctx);
                     Transfer transfer = new Transfer(ctx);
                     TransferGate transferGate = new TransferGate(ctx);
-
                     EventManager.Handler<GamepadD.Delta> intakeTransferHandler =
                             GamepadD.gamepad1Handler(event -> {
                                     intake.fixedPower(event.leftStickY());

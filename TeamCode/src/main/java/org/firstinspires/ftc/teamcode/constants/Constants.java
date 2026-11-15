@@ -55,10 +55,10 @@ public class Constants {
             c.backLeftName.set(ConfigNames.BL);
             c.frontRightName.set(ConfigNames.FR);
             c.backRightName.set(ConfigNames.BR);
-            c.frontLeftDirection.set(DcMotorSimple.Direction.FORWARD);
-            c.frontRightDirection.set(DcMotorSimple.Direction.REVERSE);
-            c.backLeftDirection.set(DcMotorSimple.Direction.FORWARD);
-            c.backRightDirection.set(DcMotorSimple.Direction.REVERSE);
+            c.frontLeftDirection.set(DcMotorSimple.Direction.REVERSE);
+            c.frontRightDirection.set(DcMotorSimple.Direction.FORWARD);
+            c.backLeftDirection.set(DcMotorSimple.Direction.REVERSE);
+            c.backRightDirection.set(DcMotorSimple.Direction.FORWARD);
         }
     );
     public static double vx = 6;//2.3;
@@ -66,7 +66,7 @@ public class Constants {
     public static OctoQuadConfig localizerConfig = new OctoQuadConfig(c -> {
         c.name.set(ConfigNames.octoquad);
         c.xPodPort.set(0);
-        c.yPodPort.set(1);
+        c.yPodPort.set(7);
         c.ticksPerUnit.set(505.316944406);
         c.xPodOffset.set(-vx);//-2.3
         c.yPodOffset.set(-vy);//-5.787401574803149t#

@@ -23,7 +23,7 @@ public class FlowerWedge extends SwitchedStateMachine {
     Telemetry.Item stateTelemetry;
     Mode down;
     Mode up;
-    public static double DOWN_POSITION = 0.32;
+    public static double DOWN_POSITION = 0.30;
     public static double UP_POSITION = 0.65;
     public static boolean INVERTED = false;
 

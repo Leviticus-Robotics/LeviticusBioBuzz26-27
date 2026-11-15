@@ -29,8 +29,8 @@ import dev.frozenmilk.dairy.mercurial.processes.Spawnable;
 public class FlowerWedgeTuning {
 
     public static final MercurialFTC.RegisterableProgram FlowerTesting = teleOp()
-            .withName("flowers")
-            .withGroup("Testing");
+            .withName("Flower Positioning")
+            .withGroup("Subsystem Testing");
     public static double pos = 0.1;
 
     //plug bounds in flower wedge state machine
@@ -46,7 +46,18 @@ public class FlowerWedgeTuning {
                     return noop;
                 })
             ).spawnable().spawnLink();
-
+            ctx.gamepadD().addHandler(GamepadD.gamepad1Handler(gamepad -> {
+                if(gamepad.dpadUpWasPressed()) {
+                    pos += 0.1;
+                } else if (gamepad.dpadDownWasPressed()) {
+                    pos -= 0.1;
+                } else if (gamepad.dpadLeftWasPressed()) {
+                    pos = FlowerWedge.UP_POSITION;
+                } else if (gamepad.dpadRightWasPressed()) {
+                    pos = FlowerWedge.DOWN_POSITION;
+                }
+                return EventManager.EventHandled.ok();
+            }));
             ctx.waitForStart();
             ctx.dropToScheduler();
             return null;

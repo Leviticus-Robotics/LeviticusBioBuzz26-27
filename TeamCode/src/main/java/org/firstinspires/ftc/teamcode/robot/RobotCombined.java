@@ -13,6 +13,7 @@ import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitUnt
 import com.acmerobotics.dashboard.config.Config;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.helper.AngleHelper;
 import org.firstinspires.ftc.teamcode.helper.BallSlot;
 import org.firstinspires.ftc.teamcode.constants.Constants;
 import org.firstinspires.ftc.teamcode.game.ALLIANCE;
@@ -168,10 +169,14 @@ public class RobotCombined {
 
         turret = new Turret(ctx, true);
         //send the turret encoder over to the turret
-        turretEncoder.addHandler(EventManager.forwardTo(
-                turret,
-                turret::updateCurrentTurretAngle
-        ));
+//        turretEncoder.addHandler(event -> {
+//            if(event.getAngleType() == AngleHelper.AngleType.Absolute){
+//                turret.updateCurrentTurretAngle(event.getAngle());
+//            }
+//            if(event.getAngleType() == AngleHelper.AngleType.Incremental){
+//                turret.updateCurrentTurretAngle(event.getAngle());
+//            }
+//        });
         //link the shooter turret angle to the turret receiving channel
         shooter.setHeadingChannel(turret.getTargetHeadingsChannel());
 

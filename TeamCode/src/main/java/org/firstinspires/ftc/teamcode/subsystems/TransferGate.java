@@ -25,7 +25,7 @@ public class TransferGate extends SwitchedStateMachine {
     Mode closed;
     Mode open;
     public static double OPEN_POSITION = 0.65;
-    public static double CLOSED_POSITION = 0.5;
+    public static double CLOSED_POSITION = 0.4;
     public static boolean INVERTED = false;
 
     public TransferGate(Context ctx){
@@ -37,12 +37,12 @@ public class TransferGate extends SwitchedStateMachine {
         stateTelemetry = ctx.telemetry().addData("TransferGate/State", "Unknown");
         //start from this mode
         open = entranceMode(from -> {
-            stateTelemetry.setValue("Inactive");
+            stateTelemetry.setValue("Open");
             servo.set(OPEN_POSITION);
         });
 
         closed = entranceMode(self -> {
-            stateTelemetry.setValue("Active");
+            stateTelemetry.setValue("Closed");
             servo.set(CLOSED_POSITION);
         });
     }

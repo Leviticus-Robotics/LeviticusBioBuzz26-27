@@ -5,6 +5,8 @@ import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.seattlesolvers.solverslib.hardware.motors.Motor;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 
@@ -37,6 +39,7 @@ public class Intake extends MotorSubsystem {
         if(useFeedforwardCoefficients){
             motor.setFeedforwardCoefficients(feedforwardCoefficients[0], feedforwardCoefficients[1], feedforwardCoefficients[2]);
         }
+        currentTelemetry =  ctx.telemetry().addData("Intake/Current(Amps)", "unknown");
         offMode = entranceMode(from ->{
                 motor.setRunMode(MotorEx.RunMode.RawPower);
                 motor.set(0);
@@ -88,9 +91,10 @@ public class Intake extends MotorSubsystem {
     public Mode runVelTillDetectionMode(double targetVelocity){
         return mode(self -> {
             motor.setRunMode(MotorEx.RunMode.VelocityControl);
+            updateCurrent();
             if(transferTwoBallsDetected() && intakeTwoBallsDetected()){
                 motor.set(0);
-                stateTelemetry.setValue("All Ball Detection");
+                stateTelemetry.setValue("All Balls Detected");
             } else{
                 motor.set(targetVelocity, currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
                 stateTelemetry.setValue("Intaking");
@@ -103,6 +107,7 @@ public class Intake extends MotorSubsystem {
         return mode(self -> {
             motor.setRunMode(MotorEx.RunMode.RawPower);
             //turn intake off if transfer & intake has 4 balls
+            updateCurrent();
             if(transferTwoBallsDetected() && intakeTwoBallsDetected()){
                 motor.set(0);
                 stateTelemetry.setValue("All Ball Detection");
@@ -120,5 +125,9 @@ public class Intake extends MotorSubsystem {
 
     public void runPowerTillDetection(double power){
         switchTo(runPowerTillDetectionMode(power));
+    }
+
+    public void updateCurrent(){
+        currentTelemetry.setValue(motor.getCurrent(CurrentUnit.AMPS));
     }
 }

@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.subsystemTesting;
 
 import com.acmerobotics.dashboard.config.Config;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.Constants;
 import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
 
@@ -22,12 +23,13 @@ public class TransferGateTest {
 
     public static MercurialFTC.RegisterableProgram teleOp() {
         return MercurialFTC.teleop(ctx -> {
+
                     TransferGate transferGate = new TransferGate(ctx);
                     EventManager.Handler<GamepadD.Delta> transferGateHandler =
                         GamepadD.gamepad1Handler(event -> {
                             if(event.leftBumperWasPressed()){
                                 transferGate.setClosed();
-                            } else{
+                            } else if(event.rightBumperWasPressed()){
                                 transferGate.setOpen();
                             }
                             if(checkFiberStatus(transferGate)){

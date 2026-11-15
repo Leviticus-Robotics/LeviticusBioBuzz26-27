@@ -78,8 +78,8 @@ public class Shooter extends SwitchedStateMachine {
         shooterLeft.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooterRight.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooterRight.setInverted(true);//need to invert one of them first
-        hoodServo = new ServoEx(ctx.hardwareMap(), ConfigNames.hoodServo);
-        hoodServo.setInverted(HOOD_SERVO_INVERTED);
+//        hoodServo = new ServoEx(ctx.hardwareMap(), ConfigNames.hoodServo);
+//        hoodServo.setInverted(HOOD_SERVO_INVERTED);
 
         motorGroup = new MotorGroup(shooterLeft, shooterRight);
         motorGroup.setRunMode(Motor.RunMode.VelocityControl);
@@ -92,11 +92,12 @@ public class Shooter extends SwitchedStateMachine {
         }
 
 
-        off = entranceMode(from -> {
+        off = mode(self -> {
             motorGroup.setRunMode(Motor.RunMode.RawPower);
-            motorGroup.set(0);
-            setHood(HOOD_DEFAULT);
+            motorGroup.stopMotor();
+//            setHood(HOOD_DEFAULT);
             stateTelemetry.setValue("off");
+            return self;
         });
     }
 
@@ -381,7 +382,7 @@ public class Shooter extends SwitchedStateMachine {
                     stateTelemetry.setValue("Fixed Power (" + power + ")");
                     motorGroup.setRunMode(MotorEx.RunMode.RawPower);
                     motorGroup.set(power);
-                    setHood(HOOD_DEFAULT);
+//                    setHood(HOOD_DEFAULT);
                 }
         );
     }

@@ -12,14 +12,14 @@ public class ConfigNames {
     public static String octoquad = "octoquad";
 
     public static String testMotor = "motor";
-    public static String shooterLeft = "BR";
-    public static String shooterRight = "BL";
+    public static String shooterLeft = "shooterLeft";
+    public static String shooterRight = "shooterRight";
     public static String intake = "intake";
     public static String transfer = "transfer";
     public static String turretServo1 = "ts1";
     public static String turretServo2 = "ts2";
     public static String turretAnalogEncoder = "tAE";
-    public static String turretQuadratureEncoder = "tQE";
+    public static String turretQuadratureEncoder = "BL";
 
     public static String flowerMechanism = "wedge";
 

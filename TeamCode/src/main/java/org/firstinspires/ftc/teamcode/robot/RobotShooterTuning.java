@@ -108,10 +108,10 @@ public class RobotShooterTuning {
         ));
 
         //send the turret encoder over to the turret
-        turretEncoder.addHandler(EventManager.forwardTo(
-                turret,
-                turret::updateCurrentTurretAngle
-        ));
+//        turretEncoder.addHandler(EventManager.forwardTo(
+//                turret,
+//                turret::updateCurrentTurretAngle
+//        ));
         //link the shooter turret angle to the turret receiving channel
         shooter.setHeadingChannel(turret.getTargetHeadingsChannel());
 
@@ -123,7 +123,7 @@ public class RobotShooterTuning {
         velocityTelemetry.setValue(shooter.getVelocity());
         poseTelemetry.setValue(localizer.pose());
         turretPositionTelemetry.setValue(turret.servoGroup.getRawPosition());
-        turretAngleTelemetry.setValue(turret.currentTurretAngle());
+//        turretAngleTelemetry.setValue(turret.currentTurretAngle());
     }
 
 

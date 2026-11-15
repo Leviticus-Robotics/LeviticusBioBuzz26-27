@@ -20,6 +20,7 @@ public abstract class MotorSubsystem extends SwitchedStateMachine{
     protected MotorEx motor;
 
     protected Telemetry.Item stateTelemetry;
+    protected Telemetry.Item currentTelemetry;
     protected Mode offMode;
     protected double currentVoltage;
     public static boolean VOLTAGE_COMPENSATION = false;
@@ -64,11 +65,12 @@ public abstract class MotorSubsystem extends SwitchedStateMachine{
     }
 
     protected Mode fixedPowerMode(double power){//parametrized so it keeps holding the velocity
-        return entranceMode(
-                from -> {
+        return mode(
+                self -> {
                     stateTelemetry.setValue("Fixed Power (" + power + ")");
                     motor.setRunMode(MotorEx.RunMode.RawPower);
                     motor.set(power);
+                    return self;
                 }
         );
     }

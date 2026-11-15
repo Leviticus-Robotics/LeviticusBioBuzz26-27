@@ -51,17 +51,23 @@ public class Turret extends SwitchedStateMachine {
 
 
     private Channel<Angle> targetHeadingsChannel = linkedSingleChannel();//receives a channel of target heading inputs for turret for sotm/lut
-    private Angle currentTurretAngle = new Angle();
+    private Angle absoluteAngle = new Angle();
+    private Angle incrementalAngle = new Angle();
+    private
     //obtained through encoder
     Mode off;
     Mode startMode;
-    protected Telemetry.Item stateTelemetry;
+    Telemetry.Item stateTelemetry;
+    Telemetry.Item absoluteAngleTelemetry;
+    Telemetry.Item incrementalAngleTelemetry;
     Angle targetAngle = new Angle();
 
     //check if need to pass in start position from encoder to set to default position because can reset to absolute position
     //passing in true to reset zero moves turret back to center position
     public Turret(Context ctx, boolean resetCenter){
         stateTelemetry = ctx.telemetry().addData("Turret/State", "unknown");
+        absoluteAngleTelemetry = ctx.telemetry().addData("Turret/Absolute(Anaolog)-Deg", "unknown");
+        incrementalAngleTelemetry = ctx.telemetry().addData("Turret/Incremental-Deg", "unknown");
         servoLeft = new ServoEx(ctx.hardwareMap(), ConfigNames.turretServo1);
         servoRight = new ServoEx(ctx.hardwareMap(), ConfigNames.turretServo2);
         servoLeft.setInverted(leftInverted);
@@ -187,7 +193,7 @@ public class Turret extends SwitchedStateMachine {
 
         for (Angle candidate : candidates) {
             if (!angleRange.contains(candidate.toRadians())) continue;
-            Angle gap = currentTurretAngle.sub(candidate).abs();
+            Angle gap = incrementalAngle.sub(candidate).abs();
             if (gap.less(minGap)) {
                 minGap = gap;
                 bestCandidate = candidate;
@@ -198,7 +204,7 @@ public class Turret extends SwitchedStateMachine {
 
         Angle low = Angle.fromRadians(angleRange.low());
         Angle high = Angle.fromRadians(angleRange.high());
-        return currentTurretAngle.distance(low).le(currentTurretAngle.distance(high))
+        return incrementalAngle.distance(low).le(incrementalAngle.distance(high))
                 ? low : high;
     }
 
@@ -206,8 +212,12 @@ public class Turret extends SwitchedStateMachine {
         return angleRange.toRange(angle.toRadians(), servoRange);
     }
 
-    public void updateCurrentTurretAngle(Angle angle){
-        this.currentTurretAngle = angle;
+    public void updateIncrementalAngle(Angle incrementalAngle){
+        this.incrementalAngle = incrementalAngle;
+    }
+
+    public void updateAbsoluteAngle(Angle absoluteAngle){
+        this.absoluteAngle = absoluteAngle;
     }
 
 
@@ -216,16 +226,25 @@ public class Turret extends SwitchedStateMachine {
     }
 
     public boolean isAtAngle(double toleranceRad){
-        return Math.abs(targetAngle.toRadians() - currentTurretAngle.toRadians()) < toleranceRad;
+        return Math.abs(targetAngle.toRadians() - incrementalAngle.toRadians()) < toleranceRad;
     }
 
     public double getTurretHeadingError(Angle angle){
-        return  Math.abs(angle.toRadians() - currentTurretAngle.toRadians());
+        return  Math.abs(angle.toRadians() - incrementalAngle.toRadians());
     }
 
-    public Angle currentTurretAngle(){
-        return currentTurretAngle;
+    public Angle currentIncrementalPosition(){
+        return incrementalAngle;
     }
+    public Angle currentAbsolutePosition(){
+        return absoluteAngle;
+    }
+
+    public void updateTelemetry(){
+        absoluteAngleTelemetry.setValue(absoluteAngle.toDegrees());
+        incrementalAngleTelemetry.setValue(incrementalAngle.toDegrees());
+    }
+
 
 
 }

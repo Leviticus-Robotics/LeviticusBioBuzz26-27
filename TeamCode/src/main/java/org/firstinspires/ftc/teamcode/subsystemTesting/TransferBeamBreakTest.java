@@ -2,6 +2,7 @@ package org.firstinspires.ftc.teamcode.subsystemTesting;
 import com.acmerobotics.dashboard.config.Config;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.helper.BallCounter;
 import org.firstinspires.ftc.teamcode.sensor.TransferBeamBreak;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
@@ -12,6 +13,7 @@ import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 import dev.frozenmilk.dairy.mercurial.processes.Fiber;
+import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 
 @Config
@@ -34,13 +36,13 @@ public class TransferBeamBreakTest {
                     Telemetry.Item ballCounterTelemetry = ctx.telemetry().addData(
                             "BallCounter/Balls", "waiting");
 
-
                     transferSensors.addHandler(event -> {
                         if(event.sensorNum == 1){
                             transfer.updateBreaker1(event.interrupted);
                         } else{
                             transfer.updateBreaker2(event.interrupted);
                         }
+                        //update Telemetry here
                         ballCounterTelemetry.setValue(ballCounter.totalBalls());
                         return EventManager.EventHandled.ok();
                     });
@@ -55,30 +57,23 @@ public class TransferBeamBreakTest {
                     });
 
 
-
-
                     EventManager.Handler<GamepadD.Delta> intakeTransferHandler =
                         GamepadD.gamepad1Handler(event -> {
                             if(setManualIntakeTransfer) {
                                 intake.fixedPower(event.leftStickY());
                                 transfer.fixedPower(event.rightStickY());
                             } else{
-                                if(event.rightTriggerOver(0.3)){
-                                    intake.runPowerTillDetection(1);
-                                    transfer.runPowerTillDetection(1);
-                                }
+                                intake.runPowerTillDetection(1);
+                                transfer.runPowerTillDetection(1);
                             }
-                            if(event.leftBumperWasPressed()){
-                                transferGate.setOpen();
-                            } else if(event.rightBumperWasPressed()){
-                                transferGate.setClosed();
+
+                            if(event.dpadUpWasPressed()){
+                                setManualIntakeTransfer = false;
+                            } else if(event.dpadDownWasPressed()){
+                                setManualIntakeTransfer = true;
                             }
-                            if(
-                                transferGate.fiber().status().alive() &&
-                                intake.fiber().status().alive() &&
-                                transfer.fiber().status().alive() &&
-                                transferSensors.fiber().status().alive()
-                            ){
+
+                            if(checkFiberStatus(intake) && checkFiberStatus(transfer) && transferSensors.fiber().status().alive()){
                                 return EventManager.EventHandled.ok();
                             } else{
                                 return EventManager.EventHandled.remove();
@@ -86,15 +81,34 @@ public class TransferBeamBreakTest {
                         }
 
                     );
+                    EventManager.Handler<GamepadD.Delta> transferGateHandler =
+                        GamepadD.gamepad1Handler(event -> {
+                            if(event.leftBumperWasPressed()){
+                                transferGate.setOpen();
+                            } else if(event.rightBumperWasPressed()){
+                                transferGate.setClosed();
+                            }
+                            if(checkFiberStatus(transferGate)){
+                                return EventManager.EventHandled.ok();
+                            } else{
+                                return EventManager.EventHandled.remove();
+                            }
+                        }
+                    );
 
 
-                    ctx.gamepadD().addHandler(intakeTransferHandler);
                     ctx.waitForStart();
+                    ctx.gamepadD().addHandler(intakeTransferHandler);
+                    ctx.gamepadD().addHandler(transferGateHandler);
                     ctx.dropToScheduler();
                     return null;
 
                 }
         );
+    }
+
+    private static boolean checkFiberStatus(SwitchedStateMachine stateMachine){
+        return stateMachine.fiber().status().alive();
     }
 
 

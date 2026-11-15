@@ -10,6 +10,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 import org.firstinspires.ftc.teamcode.hardware.IncrementalEncoder;
+import org.firstinspires.ftc.teamcode.helper.AngleHelper;
 import org.firstinspires.ftc.teamcode.util.Angle;
 
 import dev.frozenmilk.dairy.mercurial.continuations.Continuation;
@@ -23,12 +24,13 @@ import dev.frozenmilk.util.collections.Cons;
  * Supports both 4 pin quadrature (incremental) and 3 pin analog (absolute)
  * Use absolute to get the starting position, set incremental to that position
  */
-public class TurretEncoder extends EventManager<Angle> {
+public class TurretEncoder extends EventManager<AngleHelper> {
     AnalogInput absoluteEncoder;
     IncrementalEncoder incrementalEncoder;
     Telemetry.Item telemetry;
-    private double startPosition;//radians
-    private double recentPosition;//acoutning for wrap around
+    private Angle startPosition;//radians
+    private Angle recentIncrementalPosition;//use this, accounting for wrap around
+    private Angle recentAbsolutePosition;
 
     private final double TICKS_PER_REV = 4096;
 
@@ -39,7 +41,7 @@ public class TurretEncoder extends EventManager<Angle> {
         incrementalEncoder = new IncrementalEncoder(ctx.hardwareMap(), ConfigNames.turretQuadratureEncoder, TICKS_PER_REV, AngleUnit.RADIANS);
         telemetry = ctx.telemetry().addData("Turret Encoder Position: ", "unknown");
         //might not always want to reset encoder at the start in case wraparound exists
-        startPosition = getRadiansFromVoltage(absoluteEncoder);
+        startPosition = updateAbsolute(absoluteEncoder);
     }
 
     //only need to call this in autonomous, not teleop b/c incremental value saves over
@@ -55,8 +57,8 @@ public class TurretEncoder extends EventManager<Angle> {
 
     //gets the absolute encoder val and set the incremental encoder to that position
     public void resetFromAbsoluteAsync(){
-        double newAbsPosition = getRadiansFromVoltage(absoluteEncoder);
-        setEncoderAngle(newAbsPosition);
+        Angle newAbsPosition = updateAbsolute(absoluteEncoder);
+        setEncoderAngle(newAbsPosition.getValue());
         //reset incremental encoder offset to new absolute position
     }
     public Continuation.Builder<?> resetFromAbsoluteSync(){
@@ -74,29 +76,34 @@ public class TurretEncoder extends EventManager<Angle> {
 
     @Override
     protected void eventSource() {
-        recentPosition = update(incrementalEncoder);
-        Angle angle = Angle.fromRadians(recentPosition);
-        notify(angle);
-        telemetry.setValue(Math.toDegrees(recentPosition) + " deg");
+        recentIncrementalPosition = updateIncremental(incrementalEncoder);
+        recentAbsolutePosition = updateAbsolute(absoluteEncoder);
+        notify(new AngleHelper(recentIncrementalPosition, AngleHelper.AngleType.Incremental));
+        notify(new AngleHelper(recentAbsolutePosition, AngleHelper.AngleType.Absolute));
     }
 
-    private double update(IncrementalEncoder encoder){
+    private Angle updateIncremental(IncrementalEncoder encoder){
         double radians = encoder.getAngleUnnormalized(); //update incremental sensor value
-        return radians;
+        return Angle.fromRadians(radians);
     }
 
-    private double getRadiansFromVoltage(AnalogInput input){
-        return input.getVoltage() / input.getMaxVoltage() * 2 * Math.PI;//scale voltage to radians
+    private Angle updateAbsolute(AnalogInput input){
+        return Angle.fromRadians(input.getVoltage() / input.getMaxVoltage() * 2 * Math.PI);//scale voltage to radians
     }
 
 
-    public double getStartPosition(){
+    public Angle getStartPosition(){
         return startPosition;
     }
 
-    public double getRecentPosition(){
-        return recentPosition;
+    public Angle getRecentIncrementalPosition(){
+        return recentIncrementalPosition;
     }
+
+    public Angle getRecentAbsolutePosition(){
+        return recentAbsolutePosition;
+    }
+
 
 
 

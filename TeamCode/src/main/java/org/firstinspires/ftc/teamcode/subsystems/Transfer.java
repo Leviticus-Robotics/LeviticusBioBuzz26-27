@@ -3,6 +3,8 @@ package org.firstinspires.ftc.teamcode.subsystems;
 import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.DcMotor;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 
@@ -28,6 +30,7 @@ public class Transfer extends MotorSubsystem {
 
     public Transfer(Context ctx){
         stateTelemetry = ctx.telemetry().addData("Transfer/State", "unknown");
+        currentTelemetry =  ctx.telemetry().addData("Transfer/Current(Amps)", "unknown");
         motor = new MotorEx(ctx.hardwareMap(), ConfigNames.transfer);
         motor.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         motor.setInverted(false);
@@ -76,6 +79,7 @@ public class Transfer extends MotorSubsystem {
             motor.set(targetVelocity, currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
             //keep it simple for now assuming breakers working
             boolean currDetected = detectFirstBall();
+            updateCurrent();
 
             if(currDetected){
                 motor.set(0);
@@ -92,15 +96,14 @@ public class Transfer extends MotorSubsystem {
 
     public Mode runPowerTillDetectionMode(double power){
         return mode(self -> {
-            stateTelemetry.setValue("Fixed Power till Detect (" + power + ")");
             motor.setRunMode(MotorEx.RunMode.RawPower);
-            motor.set(power);
+            updateCurrent();
             //keep it simple for now assuming breakers working
             boolean currDetected = detectFirstBall();
 
             if(currDetected){
                 motor.set(0);
-                stateTelemetry.setValue("Transfer Balls Detected");
+                stateTelemetry.setValue("Balls Detected");
             } else{
                 motor.set(power);
                 stateTelemetry.setValue("Transfer on");
@@ -111,6 +114,8 @@ public class Transfer extends MotorSubsystem {
             return self;
         });
     }
+
+
     public void runPowerTillDetection(double power){
         switchTo(runPowerTillDetectionMode(power));
     }
@@ -123,6 +128,13 @@ public class Transfer extends MotorSubsystem {
         return voltageCompesnation;
     }
 
+    public MotorEx getMotor(){
+        return motor;
+    }
+
+    public void updateCurrent(){
+        currentTelemetry.setValue(motor.getCurrent(CurrentUnit.AMPS));
+    }
 
 
 
