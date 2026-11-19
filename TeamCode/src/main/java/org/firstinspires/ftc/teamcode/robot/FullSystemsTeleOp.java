@@ -21,6 +21,7 @@ import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 import dev.frozenmilk.dairy.mercurial.processes.Fiber;
 import dev.frozenmilk.dairy.mercurial.processes.Spawnable;
+import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 
 @Config
@@ -30,8 +31,8 @@ public class FullSystemsTeleOp {
 
 
     public static final MercurialFTC.RegisterableProgram SystemTesting = teleOp(new Pose(0, 0), ALLIANCE.RED, HiveTargetSide.Right)
-            .withName("Full Test")
-            .withGroup("Testing");
+            .withName("Full TeleOp Mock")
+            .withGroup("Competition");
 
     public static MercurialFTC.RegisterableProgram teleOp(Pose startPose, ALLIANCE alliance, HiveTargetSide startSide) {
         return MercurialFTC.teleop(ctx -> {
@@ -39,133 +40,112 @@ public class FullSystemsTeleOp {
             r.localizer.setPose(startPose);
 
                     //spawns a spawnable to reset turret encoder position from absolute & set turret to center
-                    Spawnable<?> program = expression((scope, self) -> {
+                    expression((scope, self) -> {
                         scope.run(waitUntil(ctx::inInit));
                         scope.run(waitFor.bind(seconds(2)));//waits for 2 seconds
                         scope.run(r.turretEncoder.resetEncoderSync());//do this to avoid hitting maximum values
                         scope.run(r.turretEncoder.resetFromAbsoluteSync());
                         //resets incremental encoder on turret, reads from absolute
                         return noop;
-                    }).spawnable();
+                    }).spawnable().spawnLink();
 
                     class DriveSettings {
                         boolean fieldCentric = false;
-                        boolean slowMode = false;
-                        boolean prevFieldCentric = false;
                     }
                     DriveSettings driveSettings = new DriveSettings();
 
-
-                    //this handles the drive inputs
                     EventManager.Handler<GamepadD.Delta> drivetrainHandler =
-                            GamepadD.gamepad1Handler(
-                                    EventManager.forwardTo(r.drivetrain, event -> {
-                                                //if current drive settings is different from previous one
-                                                if (driveSettings.prevFieldCentric != driveSettings.fieldCentric) {
-                                                    if (driveSettings.fieldCentric) {
-                                                        r.drivetrain.fieldCentric();
-                                                    } else {
-                                                        r.drivetrain.robotCentric();
-                                                    }
-                                                }
+                        GamepadD.gamepad1Handler(event -> {
+                            if (event.leftBumperWasPressed()) {
+                                driveSettings.fieldCentric = !driveSettings.fieldCentric;
+                                if (driveSettings.fieldCentric) r.drivetrain.fieldCentric();
+                                r.drivetrain.robotCentric();
+                            }
 
-                                                double multiplier = driveSettings.slowMode ? 0.4 : 1;
-                                                r.drivetrain.sendDrivePowers(
-                                                        event.leftStickX() * multiplier,
-                                                        event.leftStickY() * multiplier,
-                                                        event.rightStickY() * multiplier
-                                                );
-                                            }
-                                    )
-                            );
+                            r.drivetrain.sendDrivePowers(
+                                    -event.leftStickY(),
+                                    -event.leftStickX(),
+                                    -event.rightStickX());
+                            if(checkFiberStatus(r.drivetrain)) {
+                                return EventManager.EventHandled.ok();
+                            } else{
+                                return EventManager.EventHandled.remove();
+                            }
+                        }
+                    );
 
                     EventManager.Handler<GamepadD.Delta> shootingIntakeHandler =
-                            GamepadD.gamepad1Handler(event -> {
-                                        boolean manualPower = false;
-                                        if (Math.abs(event.rightTrigger()) > 0.1) {
-                                            manualPower = true;
-                                        }
-                                        double power = event.rightTrigger() * (event.rightBumper() ? -1 : 1);
-                                        //if we triggered the gate manual control or assisted shooting
-                                        //"b" interrupt automatic mode too
-                                        if (event.squareWasPressed()) {
-                                            r.requestManaulShoot(alliance, r.sideMachine.getSide(), manualPower, power, power);
-                                        } else if (Math.abs(power) > 0.1) {
-                                            //if we attempt to power intake, exit out of whatever mode or
-                                            r.beginDirectManualFeed(power, power);
-                                        } else if (event.rightTriggerPassedUnder(0.1)) {
-                                            r.endDirectManualFeed();
-                                        }
+                        GamepadD.gamepad1Handler(event -> {
+                            boolean intakeActive = Math.abs(event.rightTrigger()) > 0.15;
+                            double power = event.rightTrigger() * (event.rightBumper() ? -1 : 1);
 
-                                        if (event.circleWasPressed()) {
-                                            r.startAutomatic(alliance, r.sideMachine.getSide(), 1000, false);
-                                        }
 
-                                        if (event.triangleWasPressed()) {
-                                            r.requestEarlyShot();
-                                        }
-                                        if (event.crossWasPressed() && r.isAutomaticRunning()) {
-                                            r.requestBallDetect();
-                                        }
+                            //run assiststed
+                            if (intakeActive) {
+                                r.requestManualControl(power);
+                            } else if (event.rightTriggerPassedUnder(0.15)) {
+                                r.endDirectManualFeed();
+                            }
 
-                                        if (r.intake.fiber().status().alive()
-                                                && r.shooter.fiber().status().alive()
-                                                && r.turret.fiber().status().alive()
-                                                && r.transferGate.fiber().status().alive()) {
-                                            return EventManager.EventHandled.ok();
-                                        } else {
-                                            return EventManager.EventHandled.remove();
-                                        }
-                                    }
-                            );
+                            if(event.rightBumperWasPressed()){
+                                r.handleTransferGateTrigger(alliance, r.sideMachine.getSide(), intakeActive);
+                            }else if (event.rightTriggerPassedUnder(0.3)) {
+                                r.startAutomatic(alliance, r.sideMachine.getSide(), 1000, false);
+                            }
+
+                            if (event.triangleWasPressed()) {
+                                r.requestEarlyShot();
+                            }
+                            if (event.crossWasPressed()) {
+                                r.confirmBallsLoaded();
+                            }
+
+                            if (checkFiberStatus(r.intake) && checkFiberStatus(r.transfer) && checkFiberStatus(r.turret)
+                                    && r.transferGate.fiber().status().alive()) {
+                                return EventManager.EventHandled.ok();
+                            } else {
+                                return EventManager.EventHandled.remove();
+                            }
+                        }
+                    );
+
+                    EventManager.Handler<GamepadD.Delta> flowerHandler =
+                        GamepadD.gamepad1Handler(event -> {
+                            if (event.dpadDownWasPressed()) {//m2 right backside remapped
+                                r.flowerWedge.setDown();
+                            } else if (event.dpadUpWasPressed()) {//m1 left backside remapped
+                                r.flowerWedge.setUp();
+                            }
+                            return EventManager.EventHandled.ok();
+                        }
+                    );
 
                     EventManager.Handler<GamepadD.Delta> shootingSideHandler =
-                            GamepadD.gamepad1Handler(event -> {
-                                        if (event.leftBumperWasPressed()) {
-                                            r.sideMachine.setSide(HiveTargetSide.Right);
-                                        } else if (event.leftTriggerOver(0.3)) {
-                                            r.sideMachine.setSide(HiveTargetSide.Left);
-                                        }
-                                        return EventManager.EventHandled.ok();
-                                    }
-                            );
-
-
-                    Telemetry telemetry = new MultipleTelemetry(
-                            ctx.telemetry(),
-                            FtcDashboard.getInstance().getTelemetry()
+                        GamepadD.gamepad2Handler(event -> {
+                            if (event.leftBumperWasPressed()) {
+                                r.sideMachine.setSide(HiveTargetSide.Left);
+                            } else if (event.rightBumperWasPressed()) {
+                                r.sideMachine.setSide(HiveTargetSide.Right);
+                            }
+                            return EventManager.EventHandled.ok();
+                        }
                     );
 
 
-                    Fiber<?> telemetryFiber = loop(
-                            expression((scope, _self) -> {
-                                scope.runExec(() -> {
-                                    telemetry.clear();
-                                    telemetry.addData("Field Centric", driveSettings.fieldCentric);
-                                    telemetry.addData("Slow Mode", driveSettings.slowMode);
-                                    telemetry.addData("Shooter Velocity", r.shooter.getVelocity());
-                                    telemetry.addData("Shooter Mode", r.shooter.mode());
-                                    telemetry.update();
-                                });
-                                scope.run(waitFor.bind(seconds(0.1)));
-                                return noop;
-                            })
-                    ).spawnable().spawnLink();
-
-
+                    ctx.waitForStart();
                     ctx.gamepadD().addHandler(drivetrainHandler);
                     ctx.gamepadD().addHandler(shootingSideHandler);
                     ctx.gamepadD().addHandler(shootingIntakeHandler);
-
-
-                    ctx.waitForStart();
+                    ctx.gamepadD().addHandler(flowerHandler);
                     ctx.dropToScheduler();
                     return null;
 
                 }
         );
     }
-
+    private static boolean checkFiberStatus(SwitchedStateMachine stateMachine){
+        return stateMachine.fiber().status().alive();
+    }
 
 
 

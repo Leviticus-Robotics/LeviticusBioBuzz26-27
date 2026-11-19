@@ -2,7 +2,10 @@ package org.firstinspires.ftc.teamcode.robot;
 
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.expression;
 
+import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
+import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+import com.qualcomm.hardware.lynx.LynxModule;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.Constants;
@@ -18,6 +21,8 @@ import org.firstinspires.ftc.teamcode.subsystems.Transfer;
 import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
 import org.firstinspires.ftc.teamcode.subsystems.Turret;
 import org.firstinspires.ftc.teamcode.util.Angle;
+
+import java.util.List;
 
 import dev.frozenmilk.dairy.mercurial.ftc.Context;
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
@@ -41,21 +46,33 @@ public class RobotShooterTuning {
     Telemetry.Item turretAngleTelemetry;
 
     HiveSideHelper sideMachine;
-    MercurialLocalizer localizer;
+//    MercurialLocalizer localizer;
     Drivetrain drivetrain;
     TurretEncoder turretEncoder;
     VoltageMonitor voltageMonitor;
-    public static double targetVelocity = 1500;//ticks per second
+    public static double targetVelocity = 1520;//ticks per second
     public static double TURRET_TEST_ANGLE = 0;//degrees
     public static double TURRET_TEST_POSITION = 0.5;
+    public static boolean useBulkReading = false;
+    public static double targetHoodPos = 0.6;
     ALLIANCE alliance;
+    List<LynxModule> allHubs;
     public RobotShooterTuning(Context ctx, ALLIANCE alliance, HiveTargetSide startSide){
+
+        if(useBulkReading){
+            allHubs = ctx.hardwareMap().getAll(LynxModule.class);
+
+            for (LynxModule hub : allHubs) {
+                hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
+            }
+        }
         sideMachine = new HiveSideHelper(startSide);
         poseTelemetry = ctx.telemetry().addData("Localizer Pose: ", "unknown");
         velocityTelemetry = ctx.telemetry().addData("Shooter Velocity (ticks/sec): ", 0);
+
         turretPositionTelemetry = ctx.telemetry().addData("Turret Position: ", 0);
         turretAngleTelemetry = ctx.telemetry().addData("Turret Enocder Angle", 0);
-        localizer = new MercurialLocalizer(Constants.createLocalizer(ctx.hardwareMap()));
+//        localizer = new MercurialLocalizer(Constants.createLocalizer(ctx.hardwareMap()));
 
         turretEncoder = new TurretEncoder(ctx);
         voltageMonitor = new VoltageMonitor(ctx);
@@ -70,17 +87,18 @@ public class RobotShooterTuning {
 
 
         //send localizer pose to telemetry
-        localizer.addHandler(event -> {
-            poseTelemetry.setValue(localizer.pose());
-            return EventManager.EventHandled.ok();
-        });
+//        localizer.addHandler(event -> {
+//            poseTelemetry.setValue(localizer.pose());
+//            updateTelemetry();
+//            return EventManager.EventHandled.ok();
+//        });
 
 
         //send localizer pose to drivetrain
-        localizer.addHandler(EventManager.forwardTo(
-                drivetrain,
-                drivetrain::sendMotionState
-        ));
+//        localizer.addHandler(EventManager.forwardTo(
+//                drivetrain,
+//                drivetrain::sendMotionState
+//        ));
 
 
         //pass in the voltage to intake state machine
@@ -102,10 +120,10 @@ public class RobotShooterTuning {
                 shooter::updateVoltage
         ));
 
-        localizer.addHandler(EventManager.forwardTo(
-                shooter,
-                shooter::sendMotionState
-        ));
+//        localizer.addHandler(EventManager.forwardTo(
+//                shooter,
+//                shooter::sendMotionState
+//        ));
 
         //send the turret encoder over to the turret
 //        turretEncoder.addHandler(EventManager.forwardTo(
@@ -113,16 +131,24 @@ public class RobotShooterTuning {
 //                turret::updateCurrentTurretAngle
 //        ));
         //link the shooter turret angle to the turret receiving channel
-        shooter.setHeadingChannel(turret.getTargetHeadingsChannel());
+//        shooter.setHeadingChannel(turret.getTargetHeadingsChannel());
 
         transferGate = new TransferGate(ctx);
         //resetting encoder has to be in teleop main class
     }
 
     public void updateTelemetry() {
+        if (useBulkReading) {
+            for (LynxModule hub : allHubs) {
+                hub.clearBulkCache();
+            }
+        }
+        Telemetry dashboardTelem = FtcDashboard.getInstance().getTelemetry();
+        dashboardTelem.addData("Velocity", shooter.getVelocity());
+        dashboardTelem.update();
         velocityTelemetry.setValue(shooter.getVelocity());
-        poseTelemetry.setValue(localizer.pose());
-        turretPositionTelemetry.setValue(turret.servoGroup.getRawPosition());
+//        poseTelemetry.setValue(localizer.pose());
+//        turretPositionTelemetry.setValue(turret.servoGroup.getRawPosition());
 //        turretAngleTelemetry.setValue(turret.currentTurretAngle());
     }
 
@@ -138,7 +164,7 @@ public class RobotShooterTuning {
 
     public void intake(){
         intake.fixedPower(1.0);
-        transfer.fixedPower(1.0);
+        transfer.runPowerTillDetection(1.0);
     }
     public static double power = 0;
     //use Desmos to graph the chart between x: power & y: velocity * (current voltage/ target voltage)
@@ -150,6 +176,7 @@ public class RobotShooterTuning {
     //run target velocity, tune P and maybe D
     public void tunePID(){
         shooter.setUseDefaultVelocity(false);
+        shooter.setHood(targetHoodPos);
         shooter.fixedVelocity(targetVelocity, false);
     }
 
@@ -177,17 +204,17 @@ public class RobotShooterTuning {
     }
 
 
-    public void testRawTurretAngle(){
-        Angle target = Angle.fromDegrees(TURRET_TEST_ANGLE);
-        turret.setRawAngle(target);
-    }
-    public void testOptimizedTurretAngle(){
-        Angle target = Angle.fromDegrees(TURRET_TEST_ANGLE);
-        turret.setOptimizedAngle(target);
-    }
-    //set turret from 0 to 1 and find total encoder range
-    public void setTurretSetPosition(){
-        turret.setRawPosition(TURRET_TEST_POSITION);
-    }
+//    public void testRawTurretAngle(){
+//        Angle target = Angle.fromDegrees(TURRET_TEST_ANGLE);
+//        turret.setRawAngle(target);
+//    }
+//    public void testOptimizedTurretAngle(){
+//        Angle target = Angle.fromDegrees(TURRET_TEST_ANGLE);
+//        turret.setOptimizedAngle(target);
+//    }
+//    //set turret from 0 to 1 and find total encoder range
+//    public void setTurretSetPosition(){
+//        turret.setRawPosition(TURRET_TEST_POSITION);
+//    }
 }
 

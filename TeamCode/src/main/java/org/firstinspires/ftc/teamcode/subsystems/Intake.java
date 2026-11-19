@@ -3,15 +3,11 @@ package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.seattlesolvers.solverslib.hardware.motors.Motor;
-
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 
 import dev.frozenmilk.dairy.mercurial.ftc.Context;
-import dev.frozenmilk.dairy.mercurial.processes.Channel;
 
 /** Intake
  * Extends from motor subsystem
@@ -77,6 +73,23 @@ public class Intake extends MotorSubsystem {
         if(intakeSpot1Detected) numBalls++;
         if(intakeSpot2Detected) numBalls++;
         return numBalls;
+    }
+
+    @Override
+    protected Mode fixedPowerMode(double power){//parametrized so it keeps holding the velocity
+        return mode(
+                self -> {
+                    stateTelemetry.setValue("Fixed Power (" + power + ")");
+                    motor.setRunMode(MotorEx.RunMode.RawPower);
+                    if(!transferTwoBallsDetected()){
+                        motor.set(power);
+                    } else{
+                        motor.set(power / 2); // goes at half speed after two balls detect
+                    }
+
+                    return self;
+                }
+        );
     }
 
     @Override

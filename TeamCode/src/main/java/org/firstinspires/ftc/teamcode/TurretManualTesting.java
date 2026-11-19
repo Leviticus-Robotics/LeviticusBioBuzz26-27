@@ -16,7 +16,7 @@ import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 
 @Config
 @TeleOp(name = "ShooterTurretTesting")
-public class TurretTesting extends OpMode {
+public class TurretManualTesting extends OpMode {
     ServoEx servoLeft;
     ServoEx servoRight;
     MotorEx shooterLeft;
@@ -37,7 +37,7 @@ public class TurretTesting extends OpMode {
     public static boolean useFeedforwardCoefficients = true;
     public static double targetVelocity = 1500;
     Telemetry multipleTelemetry;
-    public static double power = 0.5;
+    public static double power = 0.1;
 
     @Override
     public void init() {
@@ -82,7 +82,7 @@ public class TurretTesting extends OpMode {
         shooterRight.setPower(power);
 //        motorGroup.set(targetVelocity);
 
-//        multipleTelemetry.addData("Shooter Velocity", shooterLeft.getVelocity());
+        multipleTelemetry.addData("Shooter Velocity", shooterLeft.getVelocity());
 //        multipleTelemetry.update();
     }
 }

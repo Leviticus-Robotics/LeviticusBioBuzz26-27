@@ -14,12 +14,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 public class IncrementalEncoder {
     public final DcMotorEx encoder;
     private final double cpr;
-    private int lastPosition;
-    private double positionTimestamp;
-    private double velocityTimestamp;
-    private double veloEstimate, dpp, accel, lastVelo;
-
-    private double offset = 0.0;
+    private double offset = 0.0;//this in ticks
     private RotationDirection direction = RotationDirection.FORWARD;
     private AngleUnit angleUnit;
 
@@ -32,7 +27,6 @@ public class IncrementalEncoder {
      */
     public IncrementalEncoder(HardwareMap hwMap, String id, double countsPerRevolution, AngleUnit angleUnit) {
         this(hwMap.get(DcMotorEx.class, id), countsPerRevolution, angleUnit);
-        resetEncoder();
     }
 
 
@@ -46,12 +40,6 @@ public class IncrementalEncoder {
         this.encoder = encoder;
         this.cpr = countsPerRevolution;
         this.angleUnit = angleUnit;
-        dpp = 1;
-        lastPosition = encoder.getCurrentPosition();
-        veloEstimate = 0;
-        lastVelo = encoder.getVelocity();
-        positionTimestamp = secondsNow();
-        velocityTimestamp = positionTimestamp;
     }
 
     /**
@@ -59,50 +47,9 @@ public class IncrementalEncoder {
      */
     public int getPosition() {
         int currentPosition = encoder.getCurrentPosition();
-        double currentTime = (double) System.nanoTime() / 1E9;
-        double dt = currentTime - positionTimestamp;
-        if (dt > 0) {
-            veloEstimate = (currentPosition - lastPosition) / dt;
-        }
-        lastPosition = currentPosition;
-        positionTimestamp = currentTime;
         return getDirectionMultiplier() * currentPosition - (int) offset;
     }
 
-    /**
-     * @return the distance per pulse
-     */
-    public double getDpp() {
-        return dpp;
-    }
-
-    /**
-     * @return the distance traveled by the encoder
-     */
-    public double getDistance() {
-        return dpp * getPosition();
-    }
-
-    /**
-     * @return the velocity of the encoder adjusted to account for the distance per pulse
-     */
-    public double getRate() {
-        return dpp * ((DcMotorEx) encoder).getVelocity();
-    }
-
-    /**
-     * Sets the distance per pulse of the encoder.
-     *
-     * @param distancePerPulse the desired distance per pulse (in units per tick)
-     */
-    public IncrementalEncoder setDistancePerPulse(double distancePerPulse) {
-        dpp = distancePerPulse;
-        return this;
-    }
-
-    /**
-     * @return the number of revolutions turned by the encoder
-     */
     public double getRevolutions() {
         return getPosition() / cpr;
     }
@@ -112,36 +59,7 @@ public class IncrementalEncoder {
      */
     public double getRawVelocity() {
         double velo = ((DcMotorEx) encoder).getVelocity();
-        double currentTime = secondsNow();
-        double dt = currentTime - velocityTimestamp;
-        if (dt > 0) {
-            accel = (velo - lastVelo) / dt;
-        }
-        lastVelo = velo;
-        velocityTimestamp = currentTime;
         return velo;
-    }
-
-    /**
-     * @return the estimated acceleration of the motor in ticks per second squared
-     */
-    public double getAcceleration() {
-        return accel;
-    }
-
-    private final static int CPS_STEP = 0x10000;
-
-    /**
-     * Corrects for velocity overflow
-     *
-     * @return the corrected velocity
-     */
-    public double getCorrectedVelocity() {
-        double real = getRawVelocity();
-        while (Math.abs(veloEstimate - real) > CPS_STEP / 2.0) {
-            real += Math.signum(veloEstimate - real) * CPS_STEP;
-        }
-        return real;
     }
 
     public int angleToTicks(double angle) {
@@ -153,7 +71,8 @@ public class IncrementalEncoder {
     }
 
     public IncrementalEncoder setAngle(double angle) {
-        offset = getPosition() - angleToTicks(angle);
+        int rawPosition = encoder.getCurrentPosition();
+        offset = getDirectionMultiplier() * rawPosition - angleToTicks(angle);
         return this;
     }
 
@@ -165,9 +84,6 @@ public class IncrementalEncoder {
         );
     }
 
-    public void disable() {
-        // "take no action" (encoder.close() call in SDK)
-    }
 
     public String getDeviceType() {
         return "Incremental Encoder; " + encoder.getDeviceName();
@@ -175,11 +91,6 @@ public class IncrementalEncoder {
 
     public int getDirectionMultiplier() {
         return direction.getMultiplier();
-    }
-
-    public IncrementalEncoder setDirection(RotationDirection direction) {
-        this.direction = direction;
-        return this;
     }
 
     public IncrementalEncoder setReversed(boolean reversed) {
@@ -213,12 +124,6 @@ public class IncrementalEncoder {
     public void resetEncoder(){
         encoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         encoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        lastPosition = 0;
-        veloEstimate = 0;
-        lastVelo = 0;
-        accel = 0;
-        positionTimestamp = secondsNow();
-        velocityTimestamp = positionTimestamp;
         offset = 0;
     }
     public void resetOffset() {

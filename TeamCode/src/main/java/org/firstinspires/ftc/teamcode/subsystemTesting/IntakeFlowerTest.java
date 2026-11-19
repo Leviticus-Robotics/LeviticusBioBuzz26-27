@@ -20,6 +20,7 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 
 @Config
+
 public class IntakeFlowerTest {
 
     public static final MercurialFTC.RegisterableProgram shooterTesting = teleOp()

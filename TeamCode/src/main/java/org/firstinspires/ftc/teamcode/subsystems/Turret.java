@@ -31,36 +31,43 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
  *  Robot Holding / Path Following modes
  *  Uses: 2 Servos (1 Encoder -> which comes in as a sensor)
  *  1) Left & Right Servo when staring from front intake area looking straight at the turret
- *  0.5 servo position is facing opposite of the intake
+ *  2) Turret servo centered faces away from intake -> turret angle frame is 0 degrees, pos = ccw, neg = cw
+ *  3) Encoder Absolute cannot be reset, so need to deal with this angle frame too
  */
 @Config
 public class Turret extends SwitchedStateMachine {
     ServoEx servoLeft;
     ServoEx servoRight;
-    public ServoExGroup servoGroup;
     public static Range servoRange = new Range(0, 1);
-    public static double SERVO_CENTER_POSITION = 0.5;
-    public static Angle turretIntakeOffset = Angle.fromRadians(-Math.PI);
-    //can reference this if want to set to center in nonTurret class
+    public static double SERVO_CENTER_POSITION = 0.5;//this is facing away from the intake(180)
+    public static Angle ANALOG_ENCODER_CENTER_POS = Angle.fromRadians(Math.toRadians(237));//need to find this value
+    public static Angle TURRET_CENTER_ANGLE = Angle.fromRadians(-Math.PI);
 
-    //this is the servo position where angle 0 is defined
-    //turret launches ball in the direction of the intake <-> that is angle 0 and servo centered position value
-    public static boolean leftInverted = false, rightInverted = false;
-    public static Range angleRange = new Range(Math.toRadians(-194), Math.toRadians(194));
-    //Changing servo center position will require re-adjusting angle range accordingly
+    public static Angle TURRET_HALF_TRAVEL = Angle.fromRadians(Math.toRadians(194));
+    public static Range angleRange = new Range(
+            TURRET_CENTER_ANGLE.sub(TURRET_HALF_TRAVEL).toRadians(),
+            TURRET_CENTER_ANGLE.add(TURRET_HALF_TRAVEL).toRadians()
+    );
+    //this angle range is assuming the intake facing forward is zero degrees
+    //center might not be 0 degrees
 
 
     private Channel<Angle> targetHeadingsChannel = linkedSingleChannel();//receives a channel of target heading inputs for turret for sotm/lut
     private Angle absoluteAngle = new Angle();
+    private Angle rawAbsoluteAngle = new Angle();
     private Angle incrementalAngle = new Angle();
-    private
-    //obtained through encoder
-    Mode off;
+    private Angle rawIncrementalAngle = new Angle();
+    private Angle targetTurretAngle; // current turret angle from turret frame
+    public static boolean SERVO_LEFT_INVERTED = false;
+    public static boolean SERVO_RIGHT_INVERTED = false;
+
+    Mode turnOffServos;
+    Mode noop;
     Mode startMode;
     Telemetry.Item stateTelemetry;
     Telemetry.Item absoluteAngleTelemetry;
     Telemetry.Item incrementalAngleTelemetry;
-    Angle targetAngle = new Angle();
+    public static double offsetServos = 0.02;
 
     //check if need to pass in start position from encoder to set to default position because can reset to absolute position
     //passing in true to reset zero moves turret back to center position
@@ -70,21 +77,23 @@ public class Turret extends SwitchedStateMachine {
         incrementalAngleTelemetry = ctx.telemetry().addData("Turret/Incremental-Deg", "unknown");
         servoLeft = new ServoEx(ctx.hardwareMap(), ConfigNames.turretServo1);
         servoRight = new ServoEx(ctx.hardwareMap(), ConfigNames.turretServo2);
-        servoLeft.setInverted(leftInverted);
-        servoRight.setInverted(rightInverted);
+        servoLeft.setInverted(SERVO_LEFT_INVERTED);
+        servoRight.setInverted(SERVO_RIGHT_INVERTED);
 
-        servoGroup = new ServoExGroup(servoLeft, servoRight);
-
-
-        off = mode(self -> {
+        turnOffServos = mode(self -> {
             stateTelemetry.setValue("off");
-            servoGroup.disable();
+            servoLeft.disable();
+            servoRight.disable();
+            return self;
+        });
+        noop = mode(self -> {
+            stateTelemetry.setValue("noop");
             return self;
         });
         if(resetCenter){
             startMode = setRawPositionMode(SERVO_CENTER_POSITION);
         } else{
-            startMode = off;
+            startMode = noop;
         }
 
     }
@@ -94,33 +103,36 @@ public class Turret extends SwitchedStateMachine {
     }
 
 
-    public Mode setRawPositionMode(double servoPosition){
+    private Mode setRawPositionMode(double servoPosition){
         return mode(self -> {
             stateTelemetry.setValue("Raw Position Set ( " + servoPosition + ")");
-            servoGroup.set(servoPosition);
+            setServos(servoPosition);
             return self;
         });
     }
 
+    public void setServos(double pos){
+        servoLeft.set(pos);
+        servoRight.set(pos + offsetServos);
+    }
 
     //unoptimized angle setting
-    public Mode setRawAngleMode(Angle angle){
+    private Mode setRawAngleMode(Angle intakeAngle){
         return mode(self -> {
-            stateTelemetry.setValue("Raw Angle Set ( " + angle.toDegrees() + " deg)");
-            Angle correctTurretAngle = convertIntakeToTurretAngle(angle);//convert from intake target angle to turret angle
-            servoGroup.set(convertAngleToServoRange(correctTurretAngle));
+            Angle turretAngle = convertIntakeAngleToTurretAngle(intakeAngle);
+            targetTurretAngle = optimizeAngle(turretAngle);//convert from intake target angle to turret angle
+            stateTelemetry.setValue("Raw Angle Set ( " + targetTurretAngle.toDegrees() + " deg)");
+            setServos(convertAngleToServoRange(targetTurretAngle));
             return self;
         });
     }
 
-    public Mode setOptimizedAngleMode(Angle angle){
+    private Mode setOptimizedAngleMode(Angle intakeAngle){
         return mode(self -> {
-            stateTelemetry.setValue("Optimized Angle Set ( " + angle.toDegrees() + " deg)");
-            //first optimize it assuming intake dir is the same dir as turret
-            Angle optimizedAngle = optimizeAngle(angle);
-            //then rotate so that its relative to turret servos
-            Angle correctTurretAngle = convertIntakeToTurretAngle(optimizedAngle);
-            servoGroup.set(convertAngleToServoRange(correctTurretAngle));
+            Angle turretAngle = convertIntakeAngleToTurretAngle(intakeAngle);
+            targetTurretAngle = optimizeAngle(turretAngle);
+            stateTelemetry.setValue("Optimized Turret Angle: " + targetTurretAngle.toDegrees() + " deg");
+            setServos(convertAngleToServoRange(targetTurretAngle));
             return self;
         });
     }
@@ -130,17 +142,16 @@ public class Turret extends SwitchedStateMachine {
     //2) convert that turret target heading position to angle
     //3) convert that angle to a turret set position
     //4) set servo group to that turret set position
-    public Mode trackingMode(){
+    private Mode trackingMode(){
         return mode(self -> {
             if(targetHeadingsChannel != null){
-                targetAngle = targetHeadingsChannel.poll();
+                Angle intakeTarget = targetHeadingsChannel.poll();
 
-                if(targetAngle != null) {
-                    stateTelemetry.setValue("Tracking Angle ( " + targetAngle.toDegrees() + " deg)");
-                    Angle optimizedAngle = optimizeAngle(targetAngle);
-                    //then rotate so that its relative to turret servos
-                    Angle correctTurretAngle = convertIntakeToTurretAngle(optimizedAngle);
-                    servoGroup.set(convertAngleToServoRange(correctTurretAngle));
+                if(intakeTarget != null) {
+                    Angle turretTarget = convertIntakeAngleToTurretAngle(intakeTarget);
+                    targetTurretAngle = optimizeAngle(turretTarget);
+                    stateTelemetry.setValue("Tracking Angle ( " + targetTurretAngle.toDegrees() + " deg)");
+                    setServos(convertAngleToServoRange(targetTurretAngle));
                 } else{
                     stateTelemetry.setValue("Tracking Angle: null");
                 }
@@ -160,18 +171,22 @@ public class Turret extends SwitchedStateMachine {
         switchTo(setOptimizedAngleMode(angle));
     }
 
-    public void setTrackignMode(){
+    public void setTrackingMode(){
         switchTo(trackingMode());
     }
 
-    public void off(){
-        switchTo(off);
+    public void turnOffServos(){
+        switchTo(turnOffServos);
+    }
+    public void noop(){
+        switchTo(noop);
     }
 
+
     //pass in intakeAngle we want turret to face
-    public Angle convertIntakeToTurretAngle(Angle intakeAngle){
-        intakeAngle.add(turretIntakeOffset);
-        return intakeAngle;
+    public Angle convertIntakeAngleToTurretAngle(Angle intakeAngle){
+        Angle turretCorrectSetAngle = Angle.fromRadians(intakeAngle.getValue() - TURRET_CENTER_ANGLE.toRadians());
+        return turretCorrectSetAngle;
     }
 
 
@@ -209,24 +224,31 @@ public class Turret extends SwitchedStateMachine {
     }
 
     public double convertAngleToServoRange(Angle angle){
-        return angleRange.toRange(angle.toRadians(), servoRange);
+        //get as fraction of max angle range
+        double fraction = ((angle.toRadians()) + TURRET_HALF_TRAVEL.toRadians()) / (2 * TURRET_HALF_TRAVEL.toRadians());
+        return servoRange.low() + fraction * (servoRange.high() - servoRange.low());
     }
 
-    public void updateIncrementalAngle(Angle incrementalAngle){
-        this.incrementalAngle = incrementalAngle;
+    public void updateIncrementalAngle(Angle rawPosition){
+        this.rawIncrementalAngle = rawPosition;
+        incrementalAngle = Angle.fromRadians(
+                TURRET_CENTER_ANGLE.getValue() + rawPosition.getValue() - ANALOG_ENCODER_CENTER_POS.getValue()
+        );
     }
 
-    public void updateAbsoluteAngle(Angle absoluteAngle){
-        this.absoluteAngle = absoluteAngle;
+    public Angle updateAbsoluteAngle(Angle rawAngle){
+        this.rawAbsoluteAngle = rawAngle;
+        double correctedAngle = rawAngle.toRadians() - ANALOG_ENCODER_CENTER_POS.toRadians();
+        absoluteAngle = Angle.fromRadians(TURRET_CENTER_ANGLE.toRadians() + correctedAngle).wrap();
+        return absoluteAngle;
     }
-
 
     public boolean isAtAngle(Angle angle, double toleranceRad){
         return getTurretHeadingError(angle) < toleranceRad;
     }
 
     public boolean isAtAngle(double toleranceRad){
-        return Math.abs(targetAngle.toRadians() - incrementalAngle.toRadians()) < toleranceRad;
+        return Math.abs(targetTurretAngle.toRadians() - incrementalAngle.toRadians()) < toleranceRad;
     }
 
     public double getTurretHeadingError(Angle angle){
@@ -245,6 +267,15 @@ public class Turret extends SwitchedStateMachine {
         incrementalAngleTelemetry.setValue(incrementalAngle.toDegrees());
     }
 
+
+    public Angle getRawAbsoluteAngle(){
+        return rawAbsoluteAngle;
+    }
+
+
+    public Angle getRawIncrementalAngle(){
+        return rawIncrementalAngle;
+    }
 
 
 }

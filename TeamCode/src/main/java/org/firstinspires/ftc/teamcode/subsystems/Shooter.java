@@ -37,12 +37,12 @@ import org.firstinspires.ftc.teamcode.game.ALLIANCE;
 //Single Shooter Motor: LUT Mode, SOTM, Regular Velocity, Regular Power
 public class Shooter extends SwitchedStateMachine {
     MotorGroup motorGroup;
-    public MotorEx shooterLeft; // motor wire is left
+    public MotorEx shooterLeft; // has the encoder
     public MotorEx shooterRight; // motor wire is right
     ServoEx hoodServo;
     Channel<MotionState> motionStates = linkedSingleChannel();
     public static double[] pidCoefficients = new double[] {0.003, 0.0, 0.0};
-    public static double[] feedforwardCoefficients = new double[]{0.0291871, 0.000355203, 0};
+    public static double[] feedforwardCoefficients = new double[]{0.0325, 0.00037090, 0};
     public static boolean usePIDCoefficients = true;
     public static boolean useFeedforwardCoefficients = true;
     public static boolean HOOD_SERVO_INVERTED = false;
@@ -57,7 +57,7 @@ public class Shooter extends SwitchedStateMachine {
     public double currentVoltage;
     private double currentTargetVelocity;//velocity that is currently being sent to the motors
     private double shootingTargetVelocity;//desired velocity for shooting (not default velocity)
-    boolean useDefaultVelocity = true; //set it to true initally
+    boolean useDefaultVelocity = false; //set it to true initally
     private Telemetry.Item stateTelemetry;
     Mode off;
     AimCalculator aimCalculator;
@@ -76,9 +76,10 @@ public class Shooter extends SwitchedStateMachine {
         shooterRight = new MotorEx(ctx.hardwareMap(), ConfigNames.shooterRight);
         shooterLeft.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shooterRight.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        shooterRight.setInverted(true);//need to invert one of them first
-//        hoodServo = new ServoEx(ctx.hardwareMap(), ConfigNames.hoodServo);
-//        hoodServo.setInverted(HOOD_SERVO_INVERTED);
+        shooterRight.setInverted(false);//need to invert one of them first
+        shooterLeft.setInverted(true);
+        hoodServo = new ServoEx(ctx.hardwareMap(), ConfigNames.hoodServo);
+        hoodServo.setInverted(HOOD_SERVO_INVERTED);
 
         motorGroup = new MotorGroup(shooterLeft, shooterRight);
         motorGroup.setRunMode(Motor.RunMode.VelocityControl);
@@ -185,12 +186,9 @@ public class Shooter extends SwitchedStateMachine {
 
     public Mode lutSOTMMode(
             ALLIANCE alliance,
-            HiveTargetSide side,
-            Channel<Shooter.VelocityStatus> resultChannel,
-            double tolerance
+            HiveTargetSide side
         ){
-        boolean[] notified = new boolean[1];
-        return egressMode(self -> {//used so that if it switches mode, it performs second block logic
+        return mode(self -> {//used so that if it switches mode, it performs second block logic
                     stateTelemetry.setValue("LUT SOTM (" + alliance + " " + side);
                     motorGroup.setRunMode(MotorEx.RunMode.VelocityControl);
                     MotionState motionState = motionStates.query();//query to keep for now
@@ -211,32 +209,10 @@ public class Shooter extends SwitchedStateMachine {
                         setShooter(currentTargetVelocity);
                         setHood(solution[2]); //set hood servo position
 
-                        if (resultChannel != null && !notified[0]) {//only returns to channel if not targeting default velocity
-                            if (isAtVelocity(shootingTargetVelocity, tolerance)) {
-                                notified[0] = true;
-                                resultChannel.sendIfEmpty(VelocityStatus.AT_TARGET);
-                            }
-                        }
                     }
                     return self;
-                },
-                self -> {
-                    if(resultChannel != null){
-                        resultChannel.sendIfEmpty(VelocityStatus.CANCELLED);
-                    }
                 }
         );
-    }
-    public Mode lutSOTMMode(ALLIANCE alliance, HiveTargetSide side, double tolerance){
-        return lutSOTMMode(alliance, side, null, tolerance);
-    }
-
-    public Mode lutSOTMMode(ALLIANCE alliance, HiveTargetSide side){
-        return lutSOTMMode(alliance, side, null, DEFAULT_TOLERANCE);
-    }
-
-    public void lutSOTM(ALLIANCE alliance, HiveTargetSide side, double tolerance){
-        switchTo(lutSOTMMode(alliance, side, tolerance));
     }
     public void lutSOTM(ALLIANCE alliance, HiveTargetSide side){
         switchTo(lutSOTMMode(alliance, side));
@@ -248,12 +224,9 @@ public class Shooter extends SwitchedStateMachine {
     //two channels used: one for the target heading(to go to turret or save) & one for velocity status
     public Mode lutStaticMode(
               ALLIANCE alliance,
-              HiveTargetSide side,
-              Channel<Shooter.VelocityStatus> resultChannel,
-              double tolerance
+              HiveTargetSide side
         ){
-        boolean[] notified = new boolean[1];
-        return egressMode(self -> {//used so that if it switches mode, it performs second block logic
+        return mode(self -> {//used so that if it switches mode, it performs second block logic
                 stateTelemetry.setValue("LUT Static (" + alliance + " " + side);
                 motorGroup.setRunMode(MotorEx.RunMode.VelocityControl);
                 MotionState motionState = motionStates.query();//query for now
@@ -277,32 +250,10 @@ public class Shooter extends SwitchedStateMachine {
                     setShooter(currentTargetVelocity);
                     setHood(aimCalculator.distToHoodPos.get(distance)); //set hood servo position
 
-                    if (resultChannel != null && !notified[0]) {
-                        if (isAtVelocity(shootingTargetVelocity, tolerance)) {//only returns to channel if not targeting default velocity
-                            notified[0] = true;
-                            resultChannel.sendIfEmpty(VelocityStatus.AT_TARGET);
-                        }
-                    }
                 }
                 return self;
-            },
-            self -> {
-                if(resultChannel != null){
-                    resultChannel.sendIfEmpty(VelocityStatus.CANCELLED);
-                }
             }
         );
-    }
-    public Mode lutStaticMode(ALLIANCE alliance, HiveTargetSide side, double tolerance){
-        return lutStaticMode(alliance, side, null, tolerance);
-    }
-
-    public Mode lutStaticMode(ALLIANCE alliance, HiveTargetSide side){
-        return lutStaticMode(alliance, side, null, DEFAULT_TOLERANCE);
-    }
-
-    public void lutStatic(ALLIANCE alliance, HiveTargetSide side, double tolerance){
-        switchTo(lutStaticMode(alliance, side, tolerance));
     }
 
     public void lutStatic(ALLIANCE alliance, HiveTargetSide side){
@@ -320,39 +271,35 @@ public class Shooter extends SwitchedStateMachine {
                 currentTargetVelocity,
                 currentVoltage > 0 ? currentVoltage : MotorEx.REFERENCE_VOLTAGE
         );
-        shooterRight.set(
-                currentTargetVelocity,
-                currentVoltage > 0 ? currentVoltage : MotorEx.REFERENCE_VOLTAGE
-        );
+        shooterRight.set(shooterLeft.recentOutput);
 
     }
-
-    private Mode fixedVelocityMode(double targetVelocity, double tolerance, Channel<Shooter.VelocityStatus> resultChannel, boolean setHood){
-        boolean[] notified = new boolean[1];
+    private Mode fixedVelocityMode(double targetVelocity, double hoodPosition){
         currentTargetVelocity = targetVelocity;
-        return egressMode(self -> {
+        return mode(self -> {
             stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
             motorGroup.setRunMode(MotorEx.RunMode.VelocityControl);
             shootingTargetVelocity = targetVelocity; // need to update
             currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
             setShooter(currentTargetVelocity);
-            if(setHood) {
+            setHood(hoodPosition);
+            return self;
+        });
+    }
+
+    private Mode fixedVelocityMode(double targetVelocity, boolean setHoodDefault){
+        currentTargetVelocity = targetVelocity;
+        return mode(self -> {
+            stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
+            motorGroup.setRunMode(MotorEx.RunMode.VelocityControl);
+            shootingTargetVelocity = targetVelocity; // need to update
+            currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
+            setShooter(currentTargetVelocity);
+            if (setHoodDefault) {
                 setHood(HOOD_DEFAULT);
             }
-
-
-            if (resultChannel != null && notified[0] == false) {
-                    if (isAtVelocity(shootingTargetVelocity, tolerance)) {
-                        notified[0] = true;
-                        resultChannel.sendIfEmpty(VelocityStatus.AT_TARGET);
-                    }
-                }
-                return self;
-            }, self -> {
-                if(resultChannel != null){
-                    resultChannel.sendIfEmpty(VelocityStatus.CANCELLED);
-                }
-            });
+            return self;
+        });
     }
 
     //this will be the channel that the target heading gets sent over to
@@ -360,17 +307,12 @@ public class Shooter extends SwitchedStateMachine {
         targetHeadingChannel = channel;
     }
 
-
-    public void fixedVelocity(double targetVelocity, boolean setHood){
-        switchTo(fixedVelocityMode(targetVelocity, DEFAULT_TOLERANCE, null, setHood));
+    public void fixedVelocity(double targetVelocity, boolean setHoodDefault) {
+        switchTo(fixedVelocityMode(targetVelocity, setHoodDefault));//if result channel is null, it will pass in null to third parameter
     }
 
-    public void fixedVelocity(double targetVelocity, double tolerance, boolean setHood) {
-        switchTo(fixedVelocityMode(targetVelocity, tolerance, null, setHood));
-    }
-
-    public void fixedVelocity(double targetVelocity, double tolerance, Channel<Shooter.VelocityStatus> resultChannel, boolean setHood) {
-        switchTo(fixedVelocityMode(targetVelocity, tolerance, resultChannel, setHood));//if result channel is null, it will pass in null to third parameter
+    public void fixedVelocity(double targetVelocity, double hoodPosition) {
+        switchTo(fixedVelocityMode(targetVelocity, hoodPosition));//if result channel is null, it will pass in null to third parameter
     }
 
 
@@ -381,7 +323,7 @@ public class Shooter extends SwitchedStateMachine {
                     stateTelemetry.setValue("Fixed Power (" + power + ")");
                     motorGroup.setRunMode(MotorEx.RunMode.RawPower);
                     motorGroup.set(power);
-//                    setHood(HOOD_DEFAULT);
+//                    setHood(hoodP);
                 }
         );
     }
@@ -454,10 +396,7 @@ public class Shooter extends SwitchedStateMachine {
         }
         return false;
     }
-    public enum VelocityStatus{
-        AT_TARGET,
-        CANCELLED
-    }
+
 
     public void setUseDefaultVelocity(boolean useDefault){
         this.useDefaultVelocity = useDefault;
@@ -470,7 +409,6 @@ public class Shooter extends SwitchedStateMachine {
     public double getShootingTargetVelocity(){//does not include default velocity
         return shootingTargetVelocity;
     }
-
 
 
     public void sendMotionState(MotionState motionState){

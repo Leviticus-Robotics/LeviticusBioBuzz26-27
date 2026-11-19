@@ -2,14 +2,14 @@ package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.util.ElapsedTime;
+import com.seattlesolvers.solverslib.hardware.motors.Motor;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 
 import dev.frozenmilk.dairy.mercurial.ftc.Context;
-import dev.frozenmilk.dairy.mercurial.processes.Channel;
 
 /** Transfer
  * Extends from motor subsystem
@@ -25,7 +25,10 @@ public class Transfer extends MotorSubsystem {
 
     boolean breaker1Detection = false;
     boolean breaker2Detection = false;
-    boolean prevTransferDetected = false;
+
+    public static double POST_DETECTION_WAIT_MS = 300;//wait X ms in runTillTransferDetect() modes
+    private final ElapsedTime detectionTimer = new ElapsedTime();
+    boolean detectionDelayStated = false;
 
 
     public Transfer(Context ctx){
@@ -72,55 +75,39 @@ public class Transfer extends MotorSubsystem {
 
 
     //run target velocity on till detect two balls, then turn off transfer
-    public Mode runVelTillDetectionMode(double targetVelocity){
+    public Mode ruTillDetectionMode(double target, boolean velocityRun){
         return mode(self -> {
-            stateTelemetry.setValue("Fixed Velocity till Detect (" + targetVelocity + ")");
-            motor.setRunMode(MotorEx.RunMode.VelocityControl);
-            motor.set(targetVelocity, currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
-            //keep it simple for now assuming breakers working
-            boolean currDetected = detectFirstBall();
-            updateCurrent();
-
-            if(currDetected){
-                motor.set(0);
-                stateTelemetry.setValue("Transfer Balls Detected");
+            if(velocityRun){
+                motor.setRunMode(Motor.RunMode.VelocityControl);
             } else{
-                motor.set(targetVelocity);
-                stateTelemetry.setValue("Transfer on");
-            }
-            prevTransferDetected = currDetected;
-
-            return self;
-        });
-    }
-
-    public Mode runPowerTillDetectionMode(double power){
-        return mode(self -> {
-            motor.setRunMode(MotorEx.RunMode.RawPower);
-            updateCurrent();
-            //keep it simple for now assuming breakers working
-            boolean currDetected = detectFirstBall();
-
-            if(currDetected){
-                motor.set(0);
-                stateTelemetry.setValue("Balls Detected");
-            } else{
-                motor.set(power);
-                stateTelemetry.setValue("Transfer on");
+                motor.setRunMode(MotorEx.RunMode.RawPower);
             }
 
-            prevTransferDetected = currDetected;
-
+            updateCurrent();
+            //keep it simple for now assuming breakers working
+            if(shouldTransferContinue()){
+                if(velocityRun) {
+                    double voltage = currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE;
+                    motor.set(target, voltage);
+                } else{
+                    motor.set(target);
+                }
+                stateTelemetry.setValue(detectionDelayStated ? "Detected. Finishing Transfer" : "Transfer on");
+            }
+            else {
+                motor.set(0);
+                stateTelemetry.setValue("Transferring");
+            }
             return self;
         });
     }
 
 
     public void runPowerTillDetection(double power){
-        switchTo(runPowerTillDetectionMode(power));
+        switchTo(ruTillDetectionMode(power, false));
     }
     public void runVelocityTillDetection(double velocity){
-        switchTo(runVelTillDetectionMode(velocity));
+        switchTo(ruTillDetectionMode(velocity, true));
     }
 
     @Override
@@ -137,6 +124,13 @@ public class Transfer extends MotorSubsystem {
     }
 
 
+    private boolean shouldTransferContinue(){
+        if(!detectionDelayStated && detectFirstBall()){
+            detectionDelayStated = true;
+            detectionTimer.reset();
+        }
+        return !detectionDelayStated && detectionTimer.milliseconds() < POST_DETECTION_WAIT_MS;
+    }
 
 
 }

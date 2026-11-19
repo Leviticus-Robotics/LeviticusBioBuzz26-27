@@ -4,6 +4,8 @@ package org.firstinspires.ftc.teamcode.sensor;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.exec;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.expression;
 
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -16,6 +18,7 @@ import org.firstinspires.ftc.teamcode.util.Angle;
 import dev.frozenmilk.dairy.mercurial.continuations.Continuation;
 import dev.frozenmilk.dairy.mercurial.continuations.Continuations;
 import dev.frozenmilk.dairy.mercurial.ftc.Context;
+import dev.frozenmilk.dairy.mercurial.processes.Channel;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 import dev.frozenmilk.util.collections.Cons;
 
@@ -29,10 +32,11 @@ public class TurretEncoder extends EventManager<AngleHelper> {
     IncrementalEncoder incrementalEncoder;
     Telemetry.Item telemetry;
     private Angle startPosition;//radians
-    private Angle recentIncrementalPosition;//use this, accounting for wrap around
-    private Angle recentAbsolutePosition;
+    public Angle recentIncrementalPosition;//use this, accounting for wrap around
+    public Angle recentAbsolutePosition;
 
     private final double TICKS_PER_REV = 4096;
+    private final double GR_ENCODER_TO_SERVO = (40.0 / 115.0);
 
     //reset encoder resets the incrementla encoder
     public TurretEncoder(Context ctx){
@@ -43,7 +47,6 @@ public class TurretEncoder extends EventManager<AngleHelper> {
         //might not always want to reset encoder at the start in case wraparound exists
         startPosition = updateAbsolute(absoluteEncoder);
     }
-
     //only need to call this in autonomous, not teleop b/c incremental value saves over
 
 
@@ -74,21 +77,31 @@ public class TurretEncoder extends EventManager<AngleHelper> {
         setEncoderAngle(0);
     }
 
+    boolean hasReadSensors;
+    double lastSensorReadTime;//ms
+    final long SENSOR_UPDATE_INTERVAL_MS = 20;
     @Override
     protected void eventSource() {
-        recentIncrementalPosition = updateIncremental(incrementalEncoder);
-        recentAbsolutePosition = updateAbsolute(absoluteEncoder);
+        long currTime = System.currentTimeMillis();
+        //only update every X seconds for semi-expensive io reads
+        if(!hasReadSensors || currTime - lastSensorReadTime >= SENSOR_UPDATE_INTERVAL_MS){
+            lastSensorReadTime = currTime;
+            hasReadSensors = true;
+            recentIncrementalPosition = updateIncremental(incrementalEncoder);
+            recentAbsolutePosition = updateAbsolute(absoluteEncoder);
+
+        }
         notify(new AngleHelper(recentIncrementalPosition, AngleHelper.AngleType.Incremental));
         notify(new AngleHelper(recentAbsolutePosition, AngleHelper.AngleType.Absolute));
     }
 
     private Angle updateIncremental(IncrementalEncoder encoder){
-        double radians = encoder.getAngleUnnormalized(); //update incremental sensor value
-        return Angle.fromRadians(radians);
+        double angle = encoder.getAngleUnnormalized();//update incremental sensor value
+        return Angle.fromRadians(angle * GR_ENCODER_TO_SERVO);
     }
 
     private Angle updateAbsolute(AnalogInput input){
-        return Angle.fromRadians(input.getVoltage() / input.getMaxVoltage() * 2 * Math.PI);//scale voltage to radians
+        return Angle.fromRadians(input.getVoltage() / input.getMaxVoltage() * 2 * Math.PI * GR_ENCODER_TO_SERVO);//scale voltage to radians
     }
 
 

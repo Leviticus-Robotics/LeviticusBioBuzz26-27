@@ -23,6 +23,7 @@ import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 import dev.frozenmilk.dairy.mercurial.processes.Fiber;
 import dev.frozenmilk.dairy.mercurial.processes.Spawnable;
+import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 
 @Config
@@ -31,24 +32,25 @@ public class ShooterTuningTeleOp {
 
 
 
-    public static final MercurialFTC.RegisterableProgram ShooterTesting = teleOp(new Pose(0, 0), ALLIANCE.RED, HiveTargetSide.CLOSE)
+    public static final MercurialFTC.RegisterableProgram ShooterTesting = teleOp(new Pose(0, 0), ALLIANCE.RED, HiveTargetSide.Left)
             .withName("Shooter Test")
             .withGroup("Testing");
 
     public static MercurialFTC.RegisterableProgram teleOp(Pose startPose, ALLIANCE alliance, HiveTargetSide startSide) {
         return MercurialFTC.teleop(ctx -> {
                     RobotShooterTuning r = new RobotShooterTuning(ctx, alliance, startSide);
-                    r.localizer.setPose(startPose);
-
-                    Spawnable<?> resetTurretEncoderProgram = expression((scope, self) -> {
-                        scope.run(waitUntil(ctx::inInit));
-                        scope.run(waitFor.bind(seconds(2)));//waits for 2 seconds
-                        scope.run(r.turretEncoder.resetEncoderSync());//do this to avoid hitting maximum values
-                        scope.run(r.turretEncoder.resetFromAbsoluteSync());
-                        //resets incremental encoder on turret, reads from absolute
-                        return noop;
-                    }).spawnable();
-
+//                    r.localizer.setPose(startPose);
+//
+//                    Spawnable<?> resetTurretEncoderProgram = expression((scope, self) -> {
+//                        scope.run(waitUntil(ctx::inInit));
+//                        scope.run(waitFor.bind(seconds(2)));//waits for 2 seconds
+//                        scope.run(r.turretEncoder.resetEncoderSync());//do this to avoid hitting maximum values
+//                        scope.run(r.turretEncoder.resetFromAbsoluteSync());
+//                        //resets incremental encoder on turret, reads from absolute
+//                        return noop;
+//                    }).spawnable();
+                    r.drivetrain.robotCentric();
+//
 
 
                     //this handles the drive inputs
@@ -57,14 +59,14 @@ public class ShooterTuningTeleOp {
                                     EventManager.forwardTo(r.drivetrain, event -> {
                                                 //if current drive settings is different from previous one
 
-                                                r.drivetrain.sendDrivePowers(
-                                                        event.leftStickX(),
-                                                        event.leftStickY(),
-                                                        event.rightStickY()
-                                                );
+                                            r.drivetrain.sendDrivePowers(
+                                                -event.leftStickY(),
+                                                -event.leftStickX(),
+                                                -event.rightStickX());
                                             }
                                     )
                             );
+
 
                     EventManager.Handler<GamepadD.Delta> tuningHandler =
                             GamepadD.gamepad1Handler(event -> {
@@ -96,10 +98,7 @@ public class ShooterTuningTeleOp {
                                             r.resetGate();
                                         }
 
-                                        if (r.intake.fiber().status().alive()
-                                                && r.shooter.fiber().status().alive()
-                                                && r.turret.fiber().status().alive()
-                                                && r.transferGate.fiber().status().alive()) {
+                                        if (isFiberActive(r.intake) && isFiberActive(r.transfer) && isFiberActive(r.shooter) && isFiberActive(r.transferGate)){
                                             return EventManager.EventHandled.ok();
                                         } else {
                                             return EventManager.EventHandled.remove();
@@ -107,29 +106,29 @@ public class ShooterTuningTeleOp {
                                     }
                             );
 
-                    EventManager.Handler<GamepadD.Delta> turretAngleHandler =
-                            GamepadD.gamepad1Handler(event -> {
-
-                                        if(event.crossWasPressed()){
-                                            r.testRawTurretAngle();
-                                        }
-                                        if(event.circleWasPressed()){
-                                            r.testOptimizedTurretAngle();
-                                        }
-
-                                        if(event.triangleWasPressed()) {
-                                            r.setTurretSetPosition();
-                                        }
-                                        return r.turret.fiber().status().alive() ? EventManager.EventHandled.ok() : EventManager.EventHandled.remove();
-                                    }
-                            );
+//                    EventManager.Handler<GamepadD.Delta> turretAngleHandler =
+//                            GamepadD.gamepad1Handler(event -> {
+//
+//                                        if(event.crossWasPressed()){
+//                                            r.testRawTurretAngle();
+//                                        }
+//                                        if(event.circleWasPressed()){
+//                                            r.testOptimizedTurretAngle();
+//                                        }
+//
+//                                        if(event.triangleWasPressed()) {
+//                                            r.setTurretSetPosition();
+//                                        }
+//                                        return isFiberActive(r.turret) ? EventManager.EventHandled.ok() : EventManager.EventHandled.remove();
+//                                    }
+//                            );
 
                     EventManager.Handler<GamepadD.Delta> sideMachine =
                             GamepadD.gamepad2Handler(event -> {
                                     if (event.leftBumperWasPressed()) {
-                                        r.sideMachine.setSide(HiveTargetSide.CLOSE);
+                                        r.sideMachine.setSide(HiveTargetSide.Left);
                                     } else if (event.leftTriggerOver(0.3)) {
-                                        r.sideMachine.setSide(HiveTargetSide.Far);
+                                        r.sideMachine.setSide(HiveTargetSide.Right);
                                     }
                                     return EventManager.EventHandled.ok();
                                 }
@@ -146,19 +145,24 @@ public class ShooterTuningTeleOp {
                     ).spawnable().spawnLink();
 
 
-                    ctx.gamepadD().addHandler(drivetrainHandler);
-                    ctx.gamepadD().addHandler(tuningHandler);
-                    ctx.gamepadD().addHandler(turretAngleHandler);
-                    ctx.gamepadD().addHandler(sideMachine);
+
 
 
                     ctx.waitForStart();
+                    ctx.gamepadD().addHandler(drivetrainHandler);
+                    ctx.gamepadD().addHandler(tuningHandler);
+//                    ctx.gamepadD().addHandler(turretAngleHandler);
+                    ctx.gamepadD().addHandler(sideMachine);
                     ctx.dropToScheduler();
                     return null;
 
                 }
         );
     }
+    private static boolean isFiberActive(SwitchedStateMachine activeFiber){
+        return activeFiber != null && activeFiber.fiber().status().alive();
+    }
+
 
 
 

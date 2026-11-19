@@ -13,6 +13,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 import org.firstinspires.ftc.teamcode.subsystems.Transfer;
 import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
+import org.firstinspires.ftc.teamcode.subsystems.Turret;
 
 import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
@@ -35,6 +36,7 @@ public class DrivetrainIntakeTest {
                     Drivetrain drivetrain = new Drivetrain(ctx);
 //                    MercurialLocalizer localizer = new MercurialLocalizer(Constants.createLocalizer(ctx.hardwareMap()));
 //                    localizer.setPose(startPose);
+                    Turret turret = new Turret(ctx, true);
                     Shooter shooter = new Shooter(ctx);
                     Intake intake = new Intake(ctx);
                     Transfer transfer = new Transfer(ctx);
@@ -75,12 +77,8 @@ public class DrivetrainIntakeTest {
                         }
                         return EventManager.EventHandled.ok();
                     });
-                    class DriveSettings {
-                        boolean fieldCentric = false;
-                    }
-                    DriveSettings driveSettings = new DriveSettings();
 
-                    EventManager.Handler<GamepadD.Delta> gamepadHandler =
+                    EventManager.Handler<GamepadD.Delta> drivetrainHandler =
                             GamepadD.gamepad1Handler(event -> {
 //                                if (event.leftBumperWasPressed()) {
 //                                    driveSettings.fieldCentric = !driveSettings.fieldCentric;
@@ -124,7 +122,10 @@ public class DrivetrainIntakeTest {
                     EventManager.Handler<GamepadD.Delta> shooterHandler =
                             GamepadD.gamepad1Handler(event -> {
                                         if(event.triangleWasPressed()){
-                                            shooter.fixedPower(fixedPower);
+                                            shooter.setUseDefaultVelocity(false);
+                                            shooter.fixedVelocity(1450, false);
+
+
                                         } else if(event.squareWasPressed()){
                                             shooter.off();
                                         }
@@ -156,7 +157,7 @@ public class DrivetrainIntakeTest {
                     ctx.waitForStart();
                     drivetrain.robotCentric();
                     ctx.gamepadD().addHandler(intakeTransferHandler);
-                    ctx.gamepadD().addHandler(gamepadHandler);
+                    ctx.gamepadD().addHandler(drivetrainHandler);
                     ctx.gamepadD().addHandler(transferGateHandler);
                     ctx.gamepadD().addHandler(shooterHandler);
                     ctx.dropToScheduler();

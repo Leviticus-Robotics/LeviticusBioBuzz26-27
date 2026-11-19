@@ -1,9 +1,7 @@
 package org.firstinspires.ftc.teamcode.robot;
 
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.exec;
-import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.ifThen;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.loop;
-import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.noop;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.race;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.seconds;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.sequence;
@@ -28,7 +26,6 @@ import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.FlowerWedge;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
-import org.firstinspires.ftc.teamcode.helper.HiveSideHelper;
 import org.firstinspires.ftc.teamcode.subsystems.Transfer;
 import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
 import org.firstinspires.ftc.teamcode.subsystems.Turret;
@@ -60,20 +57,26 @@ public class RobotCombined {
     TransferGate transferGate;
     Telemetry.Item poseTelemetry;
     HiveSideHelper sideMachine;
-    public static double POST_SHOOT_DELAY = 0.5;
-    public static double SHOOTER_SPINUP_TIME = 0.5;
+    public static double POST_SHOT_DELAY = 0.5;
     public static double TURRET_TOLERANCE = Math.toRadians(1.5);//can be up to 1.5 deg off when starting
-    private boolean driverRequestedEarlyShot;//shoots balls early
+    private boolean earlyShotRequested;//shoots balls early
     private boolean driverBallDetect;//driver says we already have balls
     private enum ActiveBehavior{
         NONE,
-        ASSISTED_SHOOT,
-        AUTOMATIC,
-        DIRECT_MANUAL
+        DIRECT_MANUAL,
+        ASSISTED_WAITING,
+        ASSISTED_SHOOTING,
+        AUTOMATIC_COLLECTING,
+        AUTOMATIC_WAITING,
+        AUTOMATIC_SHOOTING
     }
     private Fiber<?> activeFiber;
     private ActiveBehavior activeBehavior = ActiveBehavior.NONE;
     BallCounter ballCounter;
+    public static double GATE_EMPTY_DELAY = 0.8; //seconds
+    private Fiber<?> gateCloseTimer;
+    private boolean gateOpenCommanded = false;
+    private boolean ballsSeenSinceGateOpened = false;
 
 
 
@@ -88,6 +91,9 @@ public class RobotCombined {
         intake = new Intake(ctx);
         transfer = new Transfer(ctx);
 
+        transferGate = new TransferGate(ctx);
+        ballCounter = new BallCounter(intake, transfer);
+
         //send intake sensors over to the intake
         intakeSensors = new IntakeBallSensors(ctx);
         intakeSensors.addHandler(event -> {
@@ -96,35 +102,30 @@ public class RobotCombined {
             } else{
                 intake.updateIntakeSpot2(event.getBallDetected());
             }
+            onBallSensorsUpdate();
             return EventManager.EventHandled.ok();
         });
 
 
-        //send transfer xbeam breakers to transfer
+        //send transfer beam breakers to transfer & intake
         transferSensors = new TransferBeamBreak(ctx);
         transferSensors.addHandler(event -> {
             if(event.sensorNum == 1){
                 transfer.updateBreaker1(event.interrupted);
-            } else{
-                transfer.updateBreaker2(event.interrupted);
-            }
-            return EventManager.EventHandled.ok();
-        });
-
-
-        //send transfer beam breakers to intake
-        //need this for some of the more complicated logic
-        transferSensors.addHandler(event -> {
-            if(event.sensorNum == 1){
                 intake.updateBreaker1(event.interrupted);
             } else{
+                transfer.updateBreaker2(event.interrupted);
                 intake.updateBreaker2(event.interrupted);
             }
+            onBallSensorsUpdate();
             return EventManager.EventHandled.ok();
         });
+
+
 
 
         //send localizer pose to telemetry
+        //update other telemetry items here
         localizer.addHandler(event -> {
             poseTelemetry.setValue(localizer.pose());
             return EventManager.EventHandled.ok();
@@ -169,47 +170,40 @@ public class RobotCombined {
 
         turret = new Turret(ctx, true);
         //send the turret encoder over to the turret
-//        turretEncoder.addHandler(event -> {
-//            if(event.getAngleType() == AngleHelper.AngleType.Absolute){
-//                turret.updateCurrentTurretAngle(event.getAngle());
-//            }
-//            if(event.getAngleType() == AngleHelper.AngleType.Incremental){
-//                turret.updateCurrentTurretAngle(event.getAngle());
-//            }
-//        });
+        turretEncoder.addHandler(event -> {
+            if(event.getAngleType() == AngleHelper.AngleType.Absolute){
+                turret.updateAbsoluteAngle(event.getAngle());
+            }
+            else if(event.getAngleType() == AngleHelper.AngleType.Incremental){
+                turret.updateIncrementalAngle(event.getAngle());
+            }
+            return EventManager.EventHandled.ok();
+        });
         //link the shooter turret angle to the turret receiving channel
         shooter.setHeadingChannel(turret.getTargetHeadingsChannel());
 
-        transferGate = new TransferGate(ctx);
-        ballCounter = new BallCounter(intake, transfer);
+
     }
 
-
-
-    //a driver trigger will escape these
+    //waits for X balls OR timeout OR driver skips ball detection OR driver sends early shot
     private Continuation.Builder<?> waitForXBallsOrTimeout(int minBall, double timeoutSec){
-        return race(
-                waitUntil(() -> ballCounter.totalBalls() >= minBall || driverBallDetect),
+        //temporarily removed race condition b/c doesnt work for now
+//        return race(
+                return waitUntil(() -> ballCounter.totalBalls() >= minBall
+                        || driverBallDetect
+                        || earlyShotRequested
+                );
                 //drive requesting early shot is equivalent to having enough balls
-                waitFor.bind(seconds(timeoutSec))
-        );
+//                waitFor.bind(seconds(timeoutSec))
+
     }
-
-    private Continuation.Builder<?> waitForXBallsOrDriver(int minBall){
-        return waitUntil(() -> ballCounter.totalBalls() >= minBall || driverBallDetect);
-    }
-
-    //move this into seperate class
-
 
 
     private void shoot(){
-        transferGate.setOpen();
+        openTransferGate();
         intake.fixedPower(1.0);
         transfer.fixedPower(1.0);
     }
-    //move this into seperate class
-
 
 
 
@@ -219,26 +213,23 @@ public class RobotCombined {
         return sequence(
                 //start the shooter in default shooting mode, but still calculate w/ lutSOTM
                 exec(() -> {
-                    shooter.setUseDefaultVelocity(true);
+                    activeBehavior = ActiveBehavior.ASSISTED_WAITING;
                     shooter.lutSOTM(alliance, side);
+                    shooter.setUseDefaultVelocity(true);
                 }),
-                //dont do anything if no balls detected
-                ifThen(
-                        () -> ballCounter.totalBalls() > 0,
-                        sequence(
-                                exec(()-> shooter.setUseDefaultVelocity(false)),
-                                waitFor.bind(seconds(SHOOTER_SPINUP_TIME)),
-                                exec(this::shoot),//shoot & lower transfer gate
+                //going to assume we have balls to shoot
+                waitUntil(() -> isReadyToShoot(side)),
+                exec(() -> activeBehavior = ActiveBehavior.ASSISTED_SHOOTING),
+                exec(this::shoot),//shoot & lower transfer gate
 
-                                //wait until no balls left
-                                waitUntil(ballCounter::noBalls),
-                                //buffer time
-                                waitFor.bind(seconds(POST_SHOOT_DELAY))
-                        ),
-                        noop
-                ),
+                //wait until no balls left
+                waitUntil(ballCounter::noBalls),
+                //buffer time
+                waitFor.bind(seconds(POST_SHOT_DELAY)),
+
                 //reset
-                exec(this::resetProcesses)
+                exec(this::finishShootingSequence),
+                exec(()-> activeBehavior = ActiveBehavior.NONE)
         );
     }
 
@@ -248,31 +239,34 @@ public class RobotCombined {
     private Continuation.Builder<?> automaticCycle(ALLIANCE alliance, HiveTargetSide side, double waitBallsTimeout){
         return sequence(
             exec(() -> {
-                transferGate.setClosed();
+                activeBehavior = ActiveBehavior.AUTOMATIC_COLLECTING;
+                closeTransferGate();
                 intake.runPowerTillDetectionMode(1.0);
-                transfer.runPowerTillDetectionMode(1.0);
-                shooter.setUseDefaultVelocity(true);
+                transfer.runPowerTillDetection(1.0);
+
                 shooter.lutSOTM(alliance, side);
+                shooter.setUseDefaultVelocity(transfer.numBallsDetected() == 0);
             }),
-            waitForXBallsOrDriver(1),
-            exec(()-> shooter.setUseDefaultVelocity(false)),
-            //wait until we have 4 balls & we are ready to shoot
             waitForXBallsOrTimeout(4, waitBallsTimeout),
+            exec(() -> activeBehavior = ActiveBehavior.AUTOMATIC_WAITING),
             waitUntil(() -> isReadyToShoot(side)),
-            exec(this::shoot),
+            exec(()-> {activeBehavior = ActiveBehavior.AUTOMATIC_SHOOTING;
+                shoot();
+            }),
             //wait until no balls left
             waitUntil(ballCounter::noBalls),
             //buffer time
-            waitFor.bind(seconds(POST_SHOOT_DELAY)),
+            waitFor.bind(seconds(POST_SHOT_DELAY)),
             //reset
-            exec(this::resetProcesses)
+            exec(this::finishShootingSequence)
 
         );
     }
 
     private Continuation.Builder<?> automaticMode(ALLIANCE alliance, HiveTargetSide side, double waitBallsTimeout, boolean repeat){
         Continuation.Builder<?> cycle = automaticCycle(alliance, side, waitBallsTimeout);
-        return repeat ? loop(cycle) : cycle;
+        return repeat ? loop(cycle)
+                : sequence(cycle, exec(() -> activeBehavior = ActiveBehavior.NONE));
     }
 
 
@@ -283,33 +277,38 @@ public class RobotCombined {
         return (shooter.isValidShootPosition(side)
                 && shooter.isAtShootingTargetVelocity(Shooter.DEFAULT_TOLERANCE)
                 && turret.isAtAngle(TURRET_TOLERANCE)) ||
-                driverRequestedEarlyShot;
+                earlyShotRequested;
     }
 
 
     public void requestEarlyShot(){
-        driverRequestedEarlyShot = true;
+        earlyShotRequested = true;
     }
 
-    public void requestBallDetect(){
+    public void confirmBallsLoaded(){
         driverBallDetect = true;
     }
 
     public boolean isAutomaticRunning(){
-        return activeBehavior == ActiveBehavior.AUTOMATIC
+        return (activeBehavior == ActiveBehavior.AUTOMATIC_SHOOTING ||
+                activeBehavior == ActiveBehavior.AUTOMATIC_WAITING ||
+                activeBehavior == ActiveBehavior.AUTOMATIC_COLLECTING)
                 && activeFiber != null
-                && activeFiber.status().alive();
+                && isFiberActive();
     }
     public boolean isAssistedRunning(){
-        return activeBehavior == ActiveBehavior.ASSISTED_SHOOT
+        return (activeBehavior == ActiveBehavior.ASSISTED_WAITING ||
+                activeBehavior == ActiveBehavior.ASSISTED_SHOOTING)
                 && activeFiber != null
-                && activeFiber.status().alive();
+                && isFiberActive();
     }
 
     //whether any shooting sequence running
     public boolean isShootingBehaviorRunning(){
-        return activeFiber != null && activeFiber.status().alive();
+        return isAutomaticRunning() || isAssistedRunning();
     }
+
+
 
 
     private void cancelActiveProcesses(){
@@ -319,70 +318,61 @@ public class RobotCombined {
         }
         activeFiber = null;
         activeBehavior = ActiveBehavior.NONE;
-        driverRequestedEarlyShot = false;
+        earlyShotRequested = false;
         driverBallDetect = false;
     }
-
-    private void resetProcesses(){
+    private void stopFeed(){
         intake.off();
         transfer.off();
-        transferGate.setClosed();
-        shooter.setUseDefaultVelocity(true);
-        driverRequestedEarlyShot = false;
+        closeTransferGate();
+    }
+
+    private void prepareFeed(){
+        stopFeed();
+        earlyShotRequested = false;
         driverBallDetect = false;
     }
 
+    private void finishShootingSequence(){
+        stopFeed();
+        shooter.setUseDefaultVelocity(true);
+        earlyShotRequested = false;
+        driverBallDetect = false;
+    }
+
+
+
     public void startAssistedShoot(ALLIANCE alliance, HiveTargetSide side){
-        cancelActiveProcesses();//make sure nothing running before
-        resetProcesses();
+        cancelActiveProcesses();
+        prepareFeed();
+        activeBehavior = ActiveBehavior.ASSISTED_WAITING;
         activeFiber = assistedShootSequence(alliance, side)
                 .spawnable()
                 .spawnLink();
-        activeBehavior = ActiveBehavior.ASSISTED_SHOOT;
     }
 
     public void startAutomatic(ALLIANCE alliance, HiveTargetSide side, double timeout, boolean repeat){
         cancelActiveProcesses();
-        resetProcesses();
+        prepareFeed();
+        activeBehavior = ActiveBehavior.AUTOMATIC_COLLECTING;
         activeFiber = automaticMode(alliance, side, timeout, repeat)
                 .spawnable()
                 .spawnLink();
-        activeBehavior = ActiveBehavior.AUTOMATIC;
     }
 
-
-    public void requestManaulShoot(ALLIANCE alliance,
-                                   HiveTargetSide side,
-                                   boolean driverHasManuallyFed,
-                                   double intakePower,
-                                   double transferPower
-    ){
-        //two possibilities -> if driver has started intaking/transfer, then just give ful manual control
-        //-> otherwise by default start the assisted shot
-        //cancel active processes if in automatic mode
-        if(activeBehavior == ActiveBehavior.AUTOMATIC) {
+    public void requestManualControl(double power){
+        if(activeBehavior != ActiveBehavior.DIRECT_MANUAL){
             cancelActiveProcesses();
-        }
-        if(driverHasManuallyFed){
-            beginDirectManualFeed(intakePower, transferPower);
-            transferGate.setOpen();
-        } else{
-            startAssistedShoot(alliance, side);
-        }
-    }
-
-    public void beginDirectManualFeed(double intakePower, double transferPower){
-        if (activeBehavior != ActiveBehavior.DIRECT_MANUAL){
-            cancelActiveProcesses();
+            closeTransferGate();//just for safety
             activeBehavior = ActiveBehavior.DIRECT_MANUAL;
         }
 
-        setDirectManualPowers(intakePower, transferPower);
-    }
-
-    public void updateDirectManualFeed(double intakePower, double transferPower){
-        if (activeBehavior == ActiveBehavior.DIRECT_MANUAL){
-            setDirectManualPowers(intakePower, transferPower);
+        if(gateOpenCommanded) {
+            intake.fixedPower(power);
+            transfer.fixedPower(power);
+        } else{
+            intake.runPowerTillDetection(power);
+            transfer.runPowerTillDetection(power);
         }
     }
 
@@ -390,14 +380,113 @@ public class RobotCombined {
         if (activeBehavior == ActiveBehavior.DIRECT_MANUAL) {
             intake.off();
             transfer.off();
+            closeTransferGate();
             activeBehavior = ActiveBehavior.NONE;
+            shooter.setUseDefaultVelocity(transfer.numBallsDetected() == 0);
+        }
+    }
+    public void handleTransferGateTrigger(ALLIANCE alliance, HiveTargetSide side, boolean manualIntakeActive) {
+        //Case 1: Driver manually operating intake/transfer and gate button pressed
+        if (activeBehavior == ActiveBehavior.DIRECT_MANUAL){
+            if (manualIntakeActive && !gateOpenCommanded) {
+                openTransferGate();
+            }
+            return;
+        }
+
+        //Case 2: Start assisted shooting from idle
+        if(activeBehavior == ActiveBehavior.NONE){
+            startAssistedShoot(alliance, side);
+            return;
+        }
+
+        //Case 3: Driver trying to bypass shooter readiness
+        //Must attempt to open gate again when it is already opened
+        if(activeBehavior == ActiveBehavior.ASSISTED_WAITING ||
+            activeBehavior == ActiveBehavior.AUTOMATIC_COLLECTING ||
+            activeBehavior == ActiveBehavior.AUTOMATIC_WAITING){
+            requestEarlyShot();
         }
     }
 
-    private void setDirectManualPowers(double intakePower, double transferPower) {
-        intake.fixedPower(intakePower);
-        transfer.fixedPower(transferPower);
+
+    private boolean isShootingFeed(){
+        return activeBehavior == ActiveBehavior.ASSISTED_SHOOTING ||
+                activeBehavior == ActiveBehavior.AUTOMATIC_SHOOTING;
     }
 
-    //next thing to model is more complex shooting logic, manual and automatic
+    private void openTransferGate(){
+        cancelGateCloseTimer();
+        transferGate.setOpen();
+        gateOpenCommanded = true;
+        //sets balls seen immediantly after gate opens depending on if it seees any balls
+        ballsSeenSinceGateOpened = !ballCounter.noBalls();
+    }
+
+    private void closeTransferGate(){
+        cancelGateCloseTimer();
+        transferGate.setClosed();
+        gateOpenCommanded = false;
+        ballsSeenSinceGateOpened = false;
+    }
+
+    private void cancelGateCloseTimer(){
+        if(gateCloseTimer != null && gateCloseTimer.status().alive()){
+            gateCloseTimer.unlink();
+            gateCloseTimer.exit(ExitReason.interrupt);
+        }
+        gateCloseTimer = null;
+    }
+
+    //closes gate in manual mode after no more balls detected
+    private void scheduleGateClose(){
+        if(gateCloseTimer != null && gateCloseTimer.status().alive()){
+            return;
+        }
+        gateCloseTimer = sequence(
+                //wait in case leftover balls coming through
+                waitFor.bind(seconds(GATE_EMPTY_DELAY)),
+                exec(() -> {
+                    if(gateOpenCommanded
+                            && ballsSeenSinceGateOpened//must have seen balls after the gate opened for this to close
+                            && activeBehavior == ActiveBehavior.DIRECT_MANUAL
+                            && ballCounter.noBalls()){
+
+                        transferGate.setClosed();
+                        gateOpenCommanded = false;
+                        ballsSeenSinceGateOpened = false;
+                    }
+
+                    gateCloseTimer = null;
+                })
+        ).spawnable().spawnLink();
+    }
+
+    private void onBallSensorsUpdate(){
+        //update default shooting velocity depending on whether there are balls
+        //only do this in the manual mode
+        if(!isShootingFeed()){
+            shooter.setUseDefaultVelocity(transfer.numBallsDetected() == 0);
+        }
+        //leave if gate is not open
+        if(!gateOpenCommanded || isShootingFeed()){
+            cancelGateCloseTimer();
+            return;
+        }
+        //cancel the gate automatic closing timer if we see new balls
+        if(!ballCounter.noBalls()){
+            ballsSeenSinceGateOpened = true;
+            cancelGateCloseTimer();
+        } else if(ballsSeenSinceGateOpened){
+            scheduleGateClose();
+        }
+        //only schedule gate close if there are no more balls detected
+    }
+
+
+    private boolean isFiberActive(){
+        return activeFiber != null && activeFiber.status().alive();
+    }
+
+
 }

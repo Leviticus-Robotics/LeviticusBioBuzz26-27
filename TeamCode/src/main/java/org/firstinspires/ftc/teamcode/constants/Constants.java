@@ -61,8 +61,8 @@ public class Constants {
             c.backRightDirection.set(DcMotorSimple.Direction.FORWARD);
         }
     );
-    public static double vx = 6;//2.3;
-    public static double vy = 2.3; // 6
+    public static double vx = 84.5;//2.3;
+    public static double vy = 86.675; // 6
     public static OctoQuadConfig localizerConfig = new OctoQuadConfig(c -> {
         c.name.set(ConfigNames.octoquad);
         c.xPodPort.set(0);
@@ -73,7 +73,7 @@ public class Constants {
         c.xPodDirection.set(OctoQuad.EncoderDirection.FORWARD);
         c.yPodDirection.set(OctoQuad.EncoderDirection.REVERSE);
         c.globalDistanceUnit.set(DistanceUnit.INCH);
-        c.offsetUnits.set(DistanceUnit.INCH);
+        c.offsetUnits.set(DistanceUnit.MM);
         c.i2cRecoveryMode.set(OctoQuad.I2cRecoveryMode.MODE_1_PERIPH_RST_ON_FRAME_ERR);
         c.localizerVelocityIntervalMS.set(35);
         c.headingScalar.set(1.02750014857118422);//1.0284592570209024

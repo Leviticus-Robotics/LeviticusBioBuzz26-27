@@ -21,7 +21,7 @@ public class MotorEx extends Motor {
     public DcMotorEx motorEx;
     private double cachingTolerance = 0;
 
-    private double recentOutput;
+    public double recentOutput;
     /**
      * Constructs the instance motor for the wrapper
      *

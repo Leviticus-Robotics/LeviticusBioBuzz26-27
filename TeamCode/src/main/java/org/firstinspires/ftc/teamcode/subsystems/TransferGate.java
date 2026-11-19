@@ -53,7 +53,7 @@ public class TransferGate extends SwitchedStateMachine {
         });
     }
 
-    public void setCustomPositionMode(double servoPos){
+    public void setCustomPosition(double servoPos){
         switchTo(customPositionMode(servoPos));
     }
 
