@@ -76,6 +76,7 @@ public class Transfer extends MotorSubsystem {
 
     //run target velocity on till detect two balls, then turn off transfer
     public Mode ruTillDetectionMode(double target, boolean velocityRun){
+        detectionDelayStated = false;
         return mode(self -> {
             if(velocityRun){
                 motor.setRunMode(Motor.RunMode.VelocityControl);
@@ -96,7 +97,7 @@ public class Transfer extends MotorSubsystem {
             }
             else {
                 motor.set(0);
-                stateTelemetry.setValue("Transferring");
+                stateTelemetry.setValue("Transfer Wait");
             }
             return self;
         });
@@ -128,8 +129,8 @@ public class Transfer extends MotorSubsystem {
         if(!detectionDelayStated && detectFirstBall()){
             detectionDelayStated = true;
             detectionTimer.reset();
-        }
-        return !detectionDelayStated && detectionTimer.milliseconds() < POST_DETECTION_WAIT_MS;
+        }//wait X seconds after first ball detection before turning off transfer motors
+        return !detectionDelayStated || detectionTimer.milliseconds() < POST_DETECTION_WAIT_MS;
     }
 
 
