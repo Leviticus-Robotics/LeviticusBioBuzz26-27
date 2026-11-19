@@ -15,6 +15,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.Constants;
 import org.firstinspires.ftc.teamcode.helper.BallCounter;
 import org.firstinspires.ftc.teamcode.sensor.TransferBeamBreak;
+import org.firstinspires.ftc.teamcode.sensor.VoltageMonitor;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.FlowerWedge;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
@@ -44,6 +45,7 @@ public class Test2 {
     public static MercurialFTC.RegisterableProgram teleOp(Pose startPose) {
         return MercurialFTC.teleop(ctx -> {
                     Drivetrain drivetrain = new Drivetrain(ctx);
+                    VoltageMonitor voltageMonitor;
 //                    MercurialLocalizer localizer = new MercurialLocalizer(Constants.createLocalizer(ctx.hardwareMap()));
 //                    localizer.setPose(startPose);
                     Turret turret = new Turret(ctx, true);
@@ -54,6 +56,7 @@ public class Test2 {
                     TransferBeamBreak transferSensors = new TransferBeamBreak(ctx);
                     BallCounter ballCounter = new BallCounter(intake, transfer);
                     FlowerWedge flowerWedge = new FlowerWedge(ctx);
+                    voltageMonitor = new VoltageMonitor(ctx);
                     Telemetry.Item ballCounterTelemetry = ctx.telemetry().addData(
                             "BallCounter/Balls", "waiting");
 //                    ctx.telemetry().addLine(
@@ -68,6 +71,13 @@ public class Test2 {
 //                            drivetrain,
 //                            drivetrain::sendMotionState
 //                    ));
+
+                    //send localizer pose to shooter state machine
+                    voltageMonitor.addHandler(EventManager.forwardTo(
+                            shooter,
+                            shooter::updateVoltage
+                    ));
+
 
                     transferSensors.addHandler(event -> {
                         if(event.sensorNum == 1){
