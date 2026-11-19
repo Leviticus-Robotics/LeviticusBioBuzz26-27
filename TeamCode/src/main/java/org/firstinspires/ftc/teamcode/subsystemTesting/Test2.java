@@ -1,5 +1,12 @@
 package org.firstinspires.ftc.teamcode.subsystemTesting;
 
+import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.expression;
+import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.loop;
+import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.noop;
+import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.seconds;
+import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitFor;
+
+import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.localization.Localizer;
 import com.pedropathing.math.Pose;
@@ -65,22 +72,16 @@ public class Test2 {
                     transferSensors.addHandler(event -> {
                         if(event.sensorNum == 1){
                             transfer.updateBreaker1(event.interrupted);
+                            intake.updateBreaker1(event.interrupted);
                         } else{
                             transfer.updateBreaker2(event.interrupted);
+                            intake.updateBreaker2(event.interrupted);
                         }
                         //update Telemetry here
                         ballCounterTelemetry.setValue(ballCounter.totalBalls());
                         return EventManager.EventHandled.ok();
                     });
 
-                    transferSensors.addHandler(event -> {
-                        if(event.sensorNum == 1){
-                            intake.updateBreaker1(event.interrupted);
-                        } else{
-                            intake.updateBreaker2(event.interrupted);
-                        }
-                        return EventManager.EventHandled.ok();
-                    });
 
                     EventManager.Handler<GamepadD.Delta> drivetrainHandler =
                             GamepadD.gamepad1Handler(event -> {
@@ -105,7 +106,7 @@ public class Test2 {
                                             transfer.runPowerTillDetection(fixedTransferPower);
                                             transferGate.setClosed();
                                         }
-                                        else if(event.rightTriggerOver(0.2)){
+                                        else if(event.rightTriggerPassedOver(0.2)){
                                             intake.fixedPower(-1);
                                             transfer.fixedPower(-1);
                                             transferGate.setClosed();
@@ -139,6 +140,19 @@ public class Test2 {
                         }
                     );
 
+                    Telemetry dashboardTelem = FtcDashboard.getInstance().getTelemetry();
+
+                    Telemetry.Item velocityTelemetry =
+                            dashboardTelem.addData("Velocity(tick/sec)", "waiting");
+
+                    loop(
+                            expression((scope, _self) -> {
+                                updateTelemetry(shooter, velocityTelemetry);
+                                waitFor.bind(seconds(0.1));
+                                return noop;
+                            })
+                    ).spawnable().spawnLink();
+
                     ctx.waitForStart();
                     drivetrain.robotCentric();
                     ctx.gamepadD().addHandler(intakeTransferHandler);
@@ -154,6 +168,9 @@ public class Test2 {
 
     private static boolean checkFiberStatus(SwitchedStateMachine stateMachine){
         return stateMachine.fiber().status().alive();
+    }
+    public static void updateTelemetry(Shooter shooter, Telemetry.Item item){
+        item.setValue(shooter.getVelocity());
     }
 
 

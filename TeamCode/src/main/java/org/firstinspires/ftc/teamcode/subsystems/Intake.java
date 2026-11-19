@@ -93,6 +93,11 @@ public class Intake extends MotorSubsystem {
     }
 
     @Override
+    public void fixedPower(double power){
+        switchTo(fixedPowerMode(power));
+    }
+
+    @Override
     public boolean useVoltageCompensation(){
         return voltageCompesnation;
     }
