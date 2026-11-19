@@ -71,6 +71,7 @@ public class RobotCombined {
         AUTOMATIC_SHOOTING
     }
     private Fiber<?> activeFiber;
+    private Fiber<?> ballSensorUpdateFiber;
     private ActiveBehavior activeBehavior = ActiveBehavior.NONE;
     BallCounter ballCounter;
     public static double GATE_EMPTY_DELAY = 0.8; //seconds
@@ -78,6 +79,7 @@ public class RobotCombined {
     private boolean gateOpenCommanded = false;
     private boolean ballsSeenSinceGateOpened = false;
 
+    private boolean ballSensorStateChanged;
 
 
     public RobotCombined(Context ctx, HiveTargetSide startSide){
@@ -102,7 +104,6 @@ public class RobotCombined {
             } else{
                 intake.updateIntakeSpot2(event.getBallDetected());
             }
-            onBallSensorsUpdate();
             return EventManager.EventHandled.ok();
         });
 
@@ -117,10 +118,8 @@ public class RobotCombined {
                 transfer.updateBreaker2(event.interrupted);
                 intake.updateBreaker2(event.interrupted);
             }
-            onBallSensorsUpdate();
             return EventManager.EventHandled.ok();
         });
-
 
 
 
@@ -137,19 +136,6 @@ public class RobotCombined {
         localizer.addHandler(EventManager.forwardTo(
                 drivetrain,
                 drivetrain::sendMotionState
-        ));
-
-
-        //pass in the voltage to intake state machine
-        voltageMonitor.addHandler(EventManager.forwardTo(
-                intake,
-                intake::updateVoltage
-        ));
-
-        //pass in the voltage to transfer state machine
-        voltageMonitor.addHandler(EventManager.forwardTo(
-                transfer,
-                transfer::updateVoltage
         ));
 
 
@@ -182,8 +168,15 @@ public class RobotCombined {
         //link the shooter turret angle to the turret receiving channel
         shooter.setHeadingChannel(turret.getTargetHeadingsChannel());
 
+        //run this ball update fiber constantly
+        ballSensorUpdateFiber =
+            loop(
+                    exec(() -> onBallSensorsUpdate())
+            ).spawnable().spawnLink();
 
     }
+
+
 
     //waits for X balls OR timeout OR driver skips ball detection OR driver sends early shot
     private Continuation.Builder<?> waitForXBallsOrTimeout(int minBall, double timeoutSec){
@@ -421,6 +414,9 @@ public class RobotCombined {
         gateOpenCommanded = true;
         //sets balls seen immediantly after gate opens depending on if it seees any balls
         ballsSeenSinceGateOpened = !ballCounter.noBalls();
+        if (activeBehavior == ActiveBehavior.DIRECT_MANUAL) {
+            shooter.setUseDefaultVelocity(false);
+        }
     }
 
     private void closeTransferGate(){
@@ -456,17 +452,34 @@ public class RobotCombined {
                         gateOpenCommanded = false;
                         ballsSeenSinceGateOpened = false;
                     }
+                    //reset usedefault velocity for shooter after closing gate in manual shooting
+                    if (activeBehavior == ActiveBehavior.DIRECT_MANUAL) {
+                        shooter.setUseDefaultVelocity(
+                                transfer.numBallsDetected() == 0
+                        );
+                    }
 
                     gateCloseTimer = null;
                 })
         ).spawnable().spawnLink();
     }
 
-    private void onBallSensorsUpdate(){
+    boolean manualFeeding;
+    public void onBallSensorsUpdate(){
         //update default shooting velocity depending on whether there are balls
         //only do this in the manual mode
-        if(!isShootingFeed()){
-            shooter.setUseDefaultVelocity(transfer.numBallsDetected() == 0);
+        boolean manualFeeding = activeBehavior == ActiveBehavior.DIRECT_MANUAL && gateOpenCommanded;
+        if (!isShootingFeed()) {
+            if (manualFeeding) {//if manually feeding, use regular shooting, it closes in scheduleGateClose()
+                if (transfer.numBallsDetected() > 0) {
+                    shooter.setUseDefaultVelocity(false);
+                }
+            } else {
+                //normal outside manual feeding
+                shooter.setUseDefaultVelocity(
+                        transfer.numBallsDetected() == 0
+                );
+            }
         }
         //leave if gate is not open
         if(!gateOpenCommanded || isShootingFeed()){

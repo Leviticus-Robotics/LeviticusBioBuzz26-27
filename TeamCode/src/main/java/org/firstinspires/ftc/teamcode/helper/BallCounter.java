@@ -6,7 +6,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Transfer;
 public class BallCounter {
     Transfer transfer;
     Intake intake;
-    int totalBallCount;
+    int totalBallCount = 4;
     public BallCounter(Intake intake, Transfer transfer){
         this.intake = intake;
         this.transfer = transfer;
@@ -24,4 +24,14 @@ public class BallCounter {
         return totalBalls() == 0;
     }
 
+    public boolean updateCount() {
+        int newCount = totalBalls();
+
+        if (newCount == totalBallCount) {
+            return false;
+        }
+
+        totalBallCount = newCount;
+        return true;
+    }
 }

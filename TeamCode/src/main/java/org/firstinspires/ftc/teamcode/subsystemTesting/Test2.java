@@ -41,6 +41,7 @@ public class Test2 {
     public static double fixedTransferPower = 1;
     public static double hoodPosition = 0.5;
     public static double shooterVelocity = 1450;
+    private static boolean shooting = false;
 
     public static MercurialFTC.RegisterableProgram teleOp(Pose startPose) {
         return MercurialFTC.teleop(ctx -> {
@@ -111,21 +112,26 @@ public class Test2 {
 
                     EventManager.Handler<GamepadD.Delta> intakeTransferHandler =
                             GamepadD.gamepad1Handler(event -> {
-                                        if(event.rightBumperWasPressed()) {
-                                            intake.fixedPower(fixedIntakePower);
-                                            transfer.runPowerTillDetection(fixedTransferPower);
-                                            transferGate.setClosed();
-                                        }
-                                        else if(event.rightTriggerPassedOver(0.2)){
-                                            intake.fixedPower(-1);
-                                            transfer.fixedPower(-1);
-                                            transferGate.setClosed();
-                                        }
-                                        else if(event.leftBumperWasPressed()){
+                                        if(event.leftBumper())
+                                        {
                                             transferGate.setOpen();
                                             intake.fixedPower(1);
                                             transfer.fixedPower(1);
                                         }
+                                        else if(event.rightBumper()) {
+                                            intake.fixedPower(fixedIntakePower);
+                                            transfer.runPowerTillDetection(fixedTransferPower);
+                                            transferGate.setClosed();
+                                        } else if(event.rightTrigger() > 0.2){
+                                            intake.fixedPower(-1);
+                                            transfer.fixedPower(-1);
+                                            transferGate.setClosed();
+                                        } else{
+                                            intake.fixedPower(0);
+                                            transfer.fixedPower(0);
+                                            transferGate.setClosed();
+                                        }
+
 
                                         return EventManager.EventHandled.ok();
                                     }
@@ -150,20 +156,16 @@ public class Test2 {
                         }
                     );
 
-                    Telemetry dashboardTelem = FtcDashboard.getInstance().getTelemetry();
 
-                    Telemetry.Item velocityTelemetry =
-                            dashboardTelem.addData("Velocity(tick/sec)", "waiting");
+                    ctx.waitForStart();
 
                     loop(
                             expression((scope, _self) -> {
-                                updateTelemetry(shooter, velocityTelemetry);
+                                updateTelemetry(shooter);
                                 waitFor.bind(seconds(0.1));
                                 return noop;
                             })
                     ).spawnable().spawnLink();
-
-                    ctx.waitForStart();
                     drivetrain.robotCentric();
                     ctx.gamepadD().addHandler(intakeTransferHandler);
                     ctx.gamepadD().addHandler(drivetrainHandler);
@@ -179,8 +181,10 @@ public class Test2 {
     private static boolean checkFiberStatus(SwitchedStateMachine stateMachine){
         return stateMachine.fiber().status().alive();
     }
-    public static void updateTelemetry(Shooter shooter, Telemetry.Item item){
-        item.setValue(shooter.getVelocity());
+    public static void updateTelemetry(Shooter shooter){
+        Telemetry dashboardTelem = FtcDashboard.getInstance().getTelemetry();
+        dashboardTelem.addData("Velocity", shooter.getVelocity());
+        dashboardTelem.update();
     }
 
 
