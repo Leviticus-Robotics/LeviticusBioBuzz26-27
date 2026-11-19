@@ -32,6 +32,7 @@ public class Test2 {
     public static double fixedIntakePower = 1;
     public static double fixedTransferPower = 1;
     public static double hoodPosition = 0.5;
+    public static double shooterVelocity = 1450;
 
     public static MercurialFTC.RegisterableProgram teleOp(Pose startPose) {
         return MercurialFTC.teleop(ctx -> {
@@ -93,11 +94,8 @@ public class Test2 {
                                         -event.leftStickY(),
                                         -event.leftStickX(),
                                         -event.rightStickX());
-                                if(checkFiberStatus(drivetrain)) {
-                                    return EventManager.EventHandled.ok();
-                                } else{
-                                    return EventManager.EventHandled.remove();
-                                }
+                                return EventManager.EventHandled.ok();
+
                             });
 
                     EventManager.Handler<GamepadD.Delta> intakeTransferHandler =
@@ -118,38 +116,26 @@ public class Test2 {
                                             transfer.fixedPower(1);
                                         }
 
-                                        if(checkFiberStatus(transfer) && checkFiberStatus(intake) && transferSensors.fiber().status().alive()){
-                                            return EventManager.EventHandled.ok();
-                                        } else{
-                                            return EventManager.EventHandled.remove();
-                                        }
+                                        return EventManager.EventHandled.ok();
                                     }
 
                             );
                     EventManager.Handler<GamepadD.Delta> shooterHandler =
                         GamepadD.gamepad1Handler(event -> {
                             shooter.setUseDefaultVelocity(false);
-                            shooter.fixedVelocity(1450, hoodPosition);
-                            if(checkFiberStatus(shooter)){
-                                return EventManager.EventHandled.ok();
-                            } else{
-                                return EventManager.EventHandled.remove();
-                            }
+                            shooter.fixedVelocity(shooterVelocity, hoodPosition);
+                            return EventManager.EventHandled.remove();
                         }
 
                     );
 
                     EventManager.Handler<GamepadD.Delta> flowerMechHandler =
                         GamepadD.gamepad1Handler(event -> {
-                            if(event.leftTriggerOver(0.5)){
+                            if(event.leftTriggerPassedOver(0.5)){
                                 if (flowerWedge.getPrevPosition() == FlowerWedge.UP_POSITION) flowerWedge.setDown();
                                 else flowerWedge.setUp();
                             }
-                            if(checkFiberStatus(flowerWedge)){
-                                return EventManager.EventHandled.ok();
-                            } else{
-                                return EventManager.EventHandled.remove();
-                            }
+                            return EventManager.EventHandled.ok();
                         }
                     );
 
