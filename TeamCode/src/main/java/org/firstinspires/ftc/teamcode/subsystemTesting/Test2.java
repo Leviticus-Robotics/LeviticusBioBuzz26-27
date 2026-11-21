@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystemTesting;
 
+import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.exec;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.expression;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.loop;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.noop;
@@ -41,7 +42,6 @@ public class Test2 {
     public static double fixedTransferPower = 1;
     public static double hoodPosition = 0.5;
     public static double shooterVelocity = 1450;
-    private static boolean shooting = false;
 
     public static MercurialFTC.RegisterableProgram teleOp(Pose startPose) {
         return MercurialFTC.teleop(ctx -> {
@@ -60,12 +60,22 @@ public class Test2 {
                     voltageMonitor = new VoltageMonitor(ctx);
                     Telemetry.Item ballCounterTelemetry = ctx.telemetry().addData(
                             "BallCounter/Balls", "waiting");
-//                    ctx.telemetry().addLine(
-//                            "Dpad/up: auto-intake, down: manual");
-//                    ctx.telemetry().addLine(
-//                            "Dpad/left: open, right: close");
-//                    ctx.telemetry().addLine(
-//                            "Left Bumper: toggle field/robot");
+//                    Telemetry.Item shooterVelocityTelemetry = ctx.telemetry().addData(
+//                                   "Shooter Velocity", "waiting");
+                    Telemetry dashboardTelem = FtcDashboard.getInstance().getTelemetry();
+                    Telemetry.Item shooterVelocityTelemetry = dashboardTelem.addData(
+                            "Velocity", "waiting");
+                    ctx.telemetry().addLine(
+                            "Left bumper hold: ball shooting");
+                    ctx.telemetry().addLine(
+                            "Right bumper hold: intake");
+                    ctx.telemetry().addLine(
+                            "Right trigger hold: reverse intake");
+                    ctx.telemetry().addLine(
+                            "None: Stop Intake/Transfer/Gate");
+
+                    ctx.telemetry().addLine(
+                            "Left trigger toggle: Flower");
 
 
 //                    localizer.addHandler(EventManager.forwardTo(
@@ -100,51 +110,41 @@ public class Test2 {
 //                                    driveSettings.fieldCentric = !driveSettings.fieldCentric;
 //                                    if (driveSettings.fieldCentric) drivetrain.fieldCentric();
 //                                }
-                                drivetrain.robotCentric();
-
                                 drivetrain.sendDrivePowers(
                                         -event.leftStickY(),
                                         -event.leftStickX(),
                                         -event.rightStickX());
                                 return EventManager.EventHandled.ok();
-
                             });
 
                     EventManager.Handler<GamepadD.Delta> intakeTransferHandler =
                             GamepadD.gamepad1Handler(event -> {
-                                        if(event.leftBumper())
-                                        {
-                                            transferGate.setOpen();
-                                            intake.fixedPower(1);
-                                            transfer.fixedPower(1);
-                                        }
-                                        else if(event.rightBumper()) {
-                                            intake.fixedPower(fixedIntakePower);
-                                            transfer.runPowerTillDetection(fixedTransferPower);
-                                            transferGate.setClosed();
-                                        } else if(event.rightTrigger() > 0.2){
-                                            intake.fixedPower(-1);
-                                            transfer.fixedPower(-1);
-                                            transferGate.setClosed();
-                                        } else{
-                                            intake.fixedPower(0);
-                                            transfer.fixedPower(0);
-                                            transferGate.setClosed();
-                                        }
-
-
-                                        return EventManager.EventHandled.ok();
+                                    if(event.leftBumperWasPressed())
+                                    {
+                                        transferGate.setOpen();
+                                        intake.fixedPower(1);
+                                        transfer.fixedPower(1);
+                                    }
+                                    else if(event.rightBumperWasPressed()) {
+                                        intake.fixedPower(fixedIntakePower);
+                                        transfer.runPowerTillDetection(fixedTransferPower);
+                                        transferGate.setClosed();
+                                    } else if(event.rightTriggerPassedOver(0.2)){
+                                        intake.fixedPower(-1);
+                                        transfer.fixedPower(-1);
+                                        transferGate.setClosed();
+                                    }
+                                    if(!event.leftBumper() && !event.rightBumper() && !(event.rightTrigger() > 0.2)){
+                                        intake.fixedPower(0);
+                                        transfer.fixedPower(0);
+                                        transferGate.setClosed();
                                     }
 
-                            );
-                    EventManager.Handler<GamepadD.Delta> shooterHandler =
-                        GamepadD.gamepad1Handler(event -> {
-                            shooter.setUseDefaultVelocity(false);
-                            shooter.fixedVelocity(shooterVelocity, hoodPosition);
-                            return EventManager.EventHandled.remove();
-                        }
 
-                    );
+                                    return EventManager.EventHandled.ok();
+                                }
+                            );
+
 
                     EventManager.Handler<GamepadD.Delta> flowerMechHandler =
                         GamepadD.gamepad1Handler(event -> {
@@ -160,17 +160,20 @@ public class Test2 {
                     ctx.waitForStart();
 
                     loop(
-                            expression((scope, _self) -> {
-                                updateTelemetry(shooter);
-                                waitFor.bind(seconds(0.1));
-                                return noop;
-                            })
+                        exec(() -> {
+                            shooterVelocityTelemetry.setValue(shooter.getVelocity());
+                            dashboardTelem.update();
+                        })
+
                     ).spawnable().spawnLink();
+
                     drivetrain.robotCentric();
+                    shooter.setUseDefaultVelocity(false);
+                    shooter.fixedVelocity(shooterVelocity, hoodPosition);
                     ctx.gamepadD().addHandler(intakeTransferHandler);
                     ctx.gamepadD().addHandler(drivetrainHandler);
-                    ctx.gamepadD().addHandler(shooterHandler);
                     ctx.gamepadD().addHandler(flowerMechHandler);
+
                     ctx.dropToScheduler();
                     return null;
 
@@ -182,9 +185,9 @@ public class Test2 {
         return stateMachine.fiber().status().alive();
     }
     public static void updateTelemetry(Shooter shooter){
-        Telemetry dashboardTelem = FtcDashboard.getInstance().getTelemetry();
-        dashboardTelem.addData("Velocity", shooter.getVelocity());
-        dashboardTelem.update();
+//        dashboardTelem.addData("Velocity", shooter.getVelocity());
+//        dashboardTelem.update();
+
     }
 
 

@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.robot;
 
+import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.exec;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.expression;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.loop;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.noop;
@@ -40,14 +41,14 @@ public class FullSystemsTeleOp {
             r.localizer.setPose(startPose);
 
                     //spawns a spawnable to reset turret encoder position from absolute & set turret to center
-                    expression((scope, self) -> {
-                        scope.run(waitUntil(ctx::inInit));
-                        scope.run(waitFor.bind(seconds(2)));//waits for 2 seconds
-                        scope.run(r.turretEncoder.resetEncoderSync());//do this to avoid hitting maximum values
-                        scope.run(r.turretEncoder.resetFromAbsoluteSync());
-                        //resets incremental encoder on turret, reads from absolute
-                        return noop;
-                    }).spawnable().spawnLink();
+//                    expression((scope, self) -> {
+//                        scope.run(waitUntil(ctx::inInit));
+//                        scope.run(waitFor.bind(seconds(2)));//waits for 2 seconds
+//                        scope.run(r.turretEncoder.zeroIncremental());//do this to avoid hitting maximum values
+//                        exec(() -> {r.turretEncoder.resetFromAbsolute()};
+//                        //resets incremental encoder on turret, reads from absolute
+//                        return noop;
+//                    }).spawnable().spawnLink();
 
                     class DriveSettings {
                         boolean fieldCentric = false;

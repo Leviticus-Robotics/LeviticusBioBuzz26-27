@@ -50,8 +50,8 @@ public class Shooter extends SwitchedStateMachine {
 
 //    public static boolean DIRECTION_REVERSE = false;
 
-    public static Pose AIM_BLUE_RIGHT = new Pose(61, 55);
-    public static Pose AIM_BLUE_LEFT = new Pose(61, 67);
+    public static Pose AIM_BLUE_LEFT = new Pose(61, 55);
+    public static Pose AIM_BLUE_RIGHT = new Pose(61, 67);
     public static Pose AIM_RED_RIGHT = new Pose(141.5 - 61, 55);
     public static Pose AIM_RED_LEFT = new Pose(141.5 - 61, 67);
     public double currentVoltage;

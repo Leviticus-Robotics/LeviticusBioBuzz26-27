@@ -57,6 +57,7 @@ public class RobotShooterTuning {
     public static double targetHoodPos = 0.6;
     ALLIANCE alliance;
     List<LynxModule> allHubs;
+    public boolean TURRET_SYNCED = false;
     public RobotShooterTuning(Context ctx, ALLIANCE alliance, HiveTargetSide startSide){
 
         if(useBulkReading){
@@ -201,6 +202,16 @@ public class RobotShooterTuning {
     //observe whether balls go in and the distance from goal
     public void tuneHood() {
         shooter.setHood(hoodTestPosition);
+    }
+
+    //after setting to the start position
+    //do this once in selected programs
+    public void resetTurretEncoder(){
+        if(!TURRET_SYNCED){
+            turretEncoder.zeroIncremental();
+            turretEncoder.resetFromAbsolute();
+            TURRET_SYNCED = true;
+        }
     }
 
 

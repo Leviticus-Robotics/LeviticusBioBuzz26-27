@@ -159,6 +159,7 @@ public class ShooterTuningTeleOp {
                 }
         );
     }
+
     private static boolean isFiberActive(SwitchedStateMachine activeFiber){
         return activeFiber != null && activeFiber.fiber().status().alive();
     }
