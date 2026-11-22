@@ -180,10 +180,6 @@ public class Shooter extends SwitchedStateMachine {
             };
         }
 
-        public double getTargetHeading(Pose pose, Pose targetPose){
-            return MathFunctions.normalizeAngle(targetPose.minus(pose).heading());
-        }
-
     }
 
     public Mode lutSOTMMode(
@@ -217,6 +213,20 @@ public class Shooter extends SwitchedStateMachine {
                 }
         );
     }
+
+    //rad
+    public double getTargetAngle(Pose position, Pose target) {
+        double deltaY = target.y() - position.y();
+        double deltaX = target.x() - position.x();
+        double heading = Math.atan2(deltaY, deltaX);
+        return MathFunctions.normAngle0To2PI(heading);
+    }
+    //rad
+    public Angle getShootHeadingTurret(Pose robotPose, Pose targetPose) {
+        double angle1 = getTargetAngle(robotPose, targetPose);
+        double deltaTheta = angle1 - robotPose.heading();
+        return Angle.fromRadians(angle1 + deltaTheta * AimCalculator.robotHeadingAimCorrectionFactor).wrap();//wrap -PI to PI for turret
+    }
     public void lutSOTM(ALLIANCE alliance, HiveTargetSide side){
         switchTo(lutSOTMMode(alliance, side));
     }
@@ -248,7 +258,9 @@ public class Shooter extends SwitchedStateMachine {
                         shootingTargetVelocity = targetVelocity; // need to update
                         currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
                         if(targetHeadingChannel != null) {
-                            targetHeadingChannel.send(Angle.fromRadians(aimCalculator.getTargetHeading(robotPose, targetShootPose)));
+                            Angle targetHeading = getShootHeadingTurret(robotPose, targetShootPose);
+                            //intake -PI to PI relative angle
+                            targetHeadingChannel.send(targetHeading);
                         }
                         //pass in current voltage as long as value is valid
                         setShooter(currentTargetVelocity);
