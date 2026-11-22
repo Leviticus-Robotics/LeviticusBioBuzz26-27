@@ -19,7 +19,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 public class MotorEx extends Motor {
     public static double REFERENCE_VOLTAGE = 12.5;
     public DcMotorEx motorEx;
-    private double cachingTolerance = 0.0001;
+    private double cachingTolerance = 0;
 
     public double recentOutput;
     /**
@@ -124,10 +124,11 @@ public class MotorEx extends Motor {
      * @param power power to be assigned to the motor if difference is greater than caching tolerance or if power is exactly 0
      */
     public void setPower(double power) {
-        if ((Math.abs(power - motorEx.getPower()) > cachingTolerance) || (power == 0 && motorEx.getPower() != 0)) {
+//        if ((Math.abs(power - motorEx.getPower()) > cachingTolerance) || (power == 0 && motorEx.getPower() != 0)) {
             lastPower = power;
             motorEx.setPower(power);
-        }
+            recentOutput = power;
+//        }
     }
 
     /**

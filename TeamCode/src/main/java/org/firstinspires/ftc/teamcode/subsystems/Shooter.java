@@ -90,7 +90,6 @@ public class Shooter extends SwitchedStateMachine {
         }
 
         //only left needs encoder, right sets to the same ouptut
-        shooterRight.setRunMode(Motor.RunMode.RawPower);
 
         off = mode(self -> {
 //            setHood(HOOD_DEFAULT);
@@ -192,13 +191,11 @@ public class Shooter extends SwitchedStateMachine {
             ALLIANCE alliance,
             HiveTargetSide side
         ){
-        return entranceMode(
-            self -> {
+        return mode(
+            self -> {//used so that if it switches mode, it performs second block logic
                     shooterLeft.setRunMode(Motor.RunMode.VelocityControl);
                     shooterRight.setRunMode(Motor.RunMode.RawPower);
                     stateTelemetry.setValue("LUT SOTM (" + alliance + " " + side);
-                },
-            self -> {//used so that if it switches mode, it performs second block logic
                         if(currentMotionState != null) {
                             Pose robotPose = currentMotionState.pose();
                             Pose targetShootPose = getPose(alliance, side);
@@ -233,13 +230,11 @@ public class Shooter extends SwitchedStateMachine {
               ALLIANCE alliance,
               HiveTargetSide side
         ){
-        return entranceMode(
+        return mode(
                 self -> {
                     shooterLeft.setRunMode(Motor.RunMode.VelocityControl);
                     shooterRight.setRunMode(Motor.RunMode.RawPower);
                     stateTelemetry.setValue("LUT Static (" + alliance + " " + side);
-                },
-                self -> {
                     if(currentMotionState != null) {
                         Pose robotPose = currentMotionState.pose();
                         Pose targetShootPose = getPose(alliance, side);
@@ -281,18 +276,16 @@ public class Shooter extends SwitchedStateMachine {
                 currentTargetVelocity,
                 currentVoltage > 0 ? currentVoltage : MotorEx.REFERENCE_VOLTAGE
         );
-        shooterRight.set(shooterLeft.recentOutput);
+        shooterRight.setPower(shooterLeft.recentOutput);
 
     }
     private Mode fixedVelocityMode(double targetVelocity, double hoodPosition){
         currentTargetVelocity = targetVelocity;
-        return entranceMode(
-        self -> {
-                stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
-                shooterLeft.setRunMode(Motor.RunMode.VelocityControl);
-                shooterRight.setRunMode(Motor.RunMode.RawPower);
-            },
+        return mode(
       self -> {
+                stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
+                shooterLeft.setRunMode(MotorEx.RunMode.VelocityControl);
+                shooterRight.setRunMode(MotorEx.RunMode.RawPower);
                 shootingTargetVelocity = targetVelocity; // need to update
                 currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
                 setShooter(currentTargetVelocity);
@@ -303,12 +296,10 @@ public class Shooter extends SwitchedStateMachine {
 
     private Mode fixedVelocityMode(double targetVelocity, boolean setHoodDefault){
         currentTargetVelocity = targetVelocity;
-        return entranceMode(self -> {
+        return mode(self -> {
                 stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
                 shooterLeft.setRunMode(Motor.RunMode.VelocityControl);
                 shooterRight.setRunMode(Motor.RunMode.RawPower);
-            },
-      self -> {
                 shootingTargetVelocity = targetVelocity; // need to update
                 currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
                 setShooter(currentTargetVelocity);

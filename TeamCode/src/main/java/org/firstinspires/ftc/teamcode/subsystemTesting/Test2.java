@@ -213,6 +213,8 @@ public class Test2 {
                             )
 
                     ).spawnable().spawnLink();
+
+
                     ctx.dropToScheduler();
                     return null;
 
