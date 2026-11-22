@@ -19,7 +19,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 public class MotorEx extends Motor {
     public static double REFERENCE_VOLTAGE = 12.5;
     public DcMotorEx motorEx;
-    private double cachingTolerance = 0;
+    private double cachingTolerance = 0.0001;
 
     public double recentOutput;
     /**
@@ -89,7 +89,7 @@ public class MotorEx extends Motor {
      */
     @Override
     public double getVelocity() {
-        return motorEx.getVelocity();
+        return getCorrectedVelocity();
     }
 
     /**

@@ -6,6 +6,7 @@ import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.revhub.localizers.Encoder;
 import com.qualcomm.hardware.digitalchickenlabs.OctoQuad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.Servo;
 import com.seattlesolvers.solverslib.hardware.motors.Motor;
 import com.seattlesolvers.solverslib.hardware.servos.ServoEx;
 import com.seattlesolvers.solverslib.hardware.servos.ServoExGroup;
@@ -40,16 +41,16 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
  */
 @Config
 public class Turret extends SwitchedStateMachine {
-    public ServoEx servoLeft;
-    public ServoEx servoRight;
+    public Servo servoLeft;
+    public Servo servoRight;
     public static Range servoRange = new Range(0 , 1);
     public static Range availableRange = new Range(0 , 1);
     public static double SERVO_CENTER_POSITION = 0.5;//this is facing away from the intake(180)
     public static Angle ANALOG_ENCODER_CENTER_POS = Angle.fromRadians(-2.0 * Math.PI / 180.0);//need to find this value
     public static Angle TURRET_CENTER_ANGLE = Angle.fromRadians(-Math.PI).wrap();
 
-    public static Angle TURRET_HALF_TRAVEL = Angle.fromRadians(17 * Math.PI / 180.0);
-    public static double TURRET_OFFSET_SERVO_DELTA = -0.02;
+    public static Angle TURRET_HALF_TRAVEL = Angle.fromRadians(163.0 * Math.PI / 180.0);
+    public static double TURRET_OFFSET_SERVO_DELTA = 0;
 
     //goes -120 and +120 from the servo center
 //    public static Range angleRange = new Range(
@@ -66,7 +67,7 @@ public class Turret extends SwitchedStateMachine {
     private Angle incrementalAngle = new Angle();
     private Angle rawIncrementalAngle = new Angle();
     private Angle targetTurretAngle; // current turret angle from turret frame
-    public static boolean SERVO_LEFT_INVERTED = false;
+    public static boolean SERVO_LEFT_INVERTED = true;
     public static boolean SERVO_RIGHT_INVERTED = false;
 
     Mode turnOffServos;
@@ -83,15 +84,15 @@ public class Turret extends SwitchedStateMachine {
         stateTelemetry = ctx.telemetry().addData("Turret/State", "unknown");
         absoluteAngleTelemetry = ctx.telemetry().addData("Turret/Absolute(Anaolog)-Deg", "unknown");
         incrementalAngleTelemetry = ctx.telemetry().addData("Turret/Incremental-Deg", "unknown");
-        servoLeft = new ServoEx(ctx.hardwareMap(), ConfigNames.turretServo1);
-        servoRight = new ServoEx(ctx.hardwareMap(), ConfigNames.turretServo2);
-        servoLeft.setInverted(SERVO_LEFT_INVERTED);
-        servoRight.setInverted(SERVO_RIGHT_INVERTED);
+        servoLeft = ctx.hardwareMap().get(Servo.class, ConfigNames.turretServo1);
+        servoRight = ctx.hardwareMap().get(Servo.class, ConfigNames.turretServo2);
+        servoLeft.setDirection(SERVO_LEFT_INVERTED ? Servo.Direction.REVERSE : Servo.Direction.FORWARD);
+        servoRight.setDirection(SERVO_RIGHT_INVERTED ? Servo.Direction.REVERSE : Servo.Direction.FORWARD);
 
         turnOffServos = mode(self -> {
             stateTelemetry.setValue("off");
-            servoLeft.disable();
-            servoRight.disable();
+            servoLeft.close();
+            servoRight.close();
             return self;
         });
         noop = mode(self -> {
@@ -120,8 +121,9 @@ public class Turret extends SwitchedStateMachine {
     }
 
     public void setServos(double pos, boolean shouldOffsetServos){
-        servoLeft.set(pos);
-        servoRight.set(shouldOffsetServos ? pos + offsetServos : pos);
+        servoLeft.setPosition(pos);
+        servoRight.setPosition(shouldOffsetServos ? pos + offsetServos : pos);
+
     }
 
     //unoptimized angle setting
@@ -153,17 +155,20 @@ public class Turret extends SwitchedStateMachine {
     private Mode trackingMode(boolean shouldOffsetServos){
         return mode(self -> {
             if(targetHeadingsChannel != null){
-                Angle intakeTarget = targetHeadingsChannel.poll().wrap();//put it in -180 to 180 b/c dont need full 360 degrees
-
-                if(intakeTarget != null) {
-                    Angle turretTarget = convertIntakeAngleToTurretAngle(intakeTarget).wrap();//also going to be -180 to 180
-//                    targetTurretAngle = optimizeAngle(turretTarget);
-                    targetTurretAngle = turretTarget;
-                    stateTelemetry.setValue("Tracking Angle Int( " + intakeTarget.toDegrees() + " deg)");
-                    setServos(convertAngleToServoRange(targetTurretAngle), shouldOffsetServos);
+                Angle intakeTarget = targetHeadingsChannel.poll();
+                if(intakeTarget != null){
+                    intakeTarget.wrap();
                 } else{
-                    stateTelemetry.setValue("Tracking Angle: null");
+                    stateTelemetry.setValue("Tracking Angle Int( Null");
+                    return self;
                 }
+                //put it in -180 to 180 b/c dont need full 360 degrees
+
+                Angle turretTarget = convertIntakeAngleToTurretAngle(intakeTarget).wrap();//also going to be -180 to 180
+//                    targetTurretAngle = optimizeAngle(turretTarget);
+                targetTurretAngle = turretTarget;
+                stateTelemetry.setValue("Tracking Angle Int( " + intakeTarget.toDegrees() + " deg)");
+                setServos(convertAngleToServoRange(targetTurretAngle), shouldOffsetServos);
             }
             return self;
         });

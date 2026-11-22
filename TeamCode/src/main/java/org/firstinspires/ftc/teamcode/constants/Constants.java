@@ -68,10 +68,10 @@ public class Constants {
         c.xPodPort.set(0);
         c.yPodPort.set(7);
         c.ticksPerUnit.set(505.316944406);
-        c.xPodOffset.set(-vx);//-2.3
-        c.yPodOffset.set(-vy);//-5.787401574803149t#
+        c.xPodOffset.set(vx);//-2.3
+        c.yPodOffset.set(vy);//-5.787401574803149t#
         c.xPodDirection.set(OctoQuad.EncoderDirection.FORWARD);
-        c.yPodDirection.set(OctoQuad.EncoderDirection.REVERSE);
+        c.yPodDirection.set(OctoQuad.EncoderDirection.FORWARD);
         c.globalDistanceUnit.set(DistanceUnit.INCH);
         c.offsetUnits.set(DistanceUnit.MM);
         c.i2cRecoveryMode.set(OctoQuad.I2cRecoveryMode.MODE_1_PERIPH_RST_ON_FRAME_ERR);

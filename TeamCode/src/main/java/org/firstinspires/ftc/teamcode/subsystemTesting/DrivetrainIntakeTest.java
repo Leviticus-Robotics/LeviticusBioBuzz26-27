@@ -1,5 +1,9 @@
 package org.firstinspires.ftc.teamcode.subsystemTesting;
 
+import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.exec;
+import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.loop;
+
+import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.localization.Localizer;
 import com.pedropathing.math.Pose;
@@ -27,16 +31,16 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 public class DrivetrainIntakeTest {
     public static boolean setManualIntakeTransfer = true;
     public static double fixedPower = 0.65;
-    public static final MercurialFTC.RegisterableProgram drivetrainIntakeTesting = teleOp(new Pose(0, 0))
+    public static final MercurialFTC.RegisterableProgram drivetrainIntakeTesting = teleOp(new Pose(8, 8, Math.toRadians(0)))
             .withName("Drivetrain Intake Test")
             .withGroup("Subsystem Testing");
 
     public static MercurialFTC.RegisterableProgram teleOp(Pose startPose) {
         return MercurialFTC.teleop(ctx -> {
                     Drivetrain drivetrain = new Drivetrain(ctx);
-//                    MercurialLocalizer localizer = new MercurialLocalizer(Constants.createLocalizer(ctx.hardwareMap()));
-//                    localizer.setPose(startPose);
-                    Turret turret = new Turret(ctx, true);
+                    MercurialLocalizer localizer = new MercurialLocalizer(Constants.createLocalizer(ctx.hardwareMap()));
+                    localizer.setPose(startPose);
+//                    Turret turret = new Turret(ctx, true);
                     Shooter shooter = new Shooter(ctx);
                     Intake intake = new Intake(ctx);
                     Transfer transfer = new Transfer(ctx);
@@ -51,55 +55,49 @@ public class DrivetrainIntakeTest {
                             "Dpad/left: open, right: close");
                     ctx.telemetry().addLine(
                             "Left Bumper: toggle field/robot");
+                    Telemetry.Item poseTelemetry = ctx.telemetry().addData(
+                            "Pose: ", "unknown");
 
 
-//                    localizer.addHandler(EventManager.forwardTo(
-//                            drivetrain,
-//                            drivetrain::sendMotionState
-//                    ));
+                    localizer.addHandler(EventManager.forwardTo(
+                            drivetrain,
+                            drivetrain::sendMotionState
+                    ));
 
                     transferSensors.addHandler(event -> {
                         if(event.sensorNum == 1){
                             transfer.updateBreaker1(event.interrupted);
+                            intake.updateBreaker1(event.interrupted);
                         } else{
                             transfer.updateBreaker2(event.interrupted);
+                            intake.updateBreaker2(event.interrupted);
                         }
                         //update Telemetry here
                         ballCounterTelemetry.setValue(ballCounter.totalBalls());
                         return EventManager.EventHandled.ok();
                     });
 
-                    transferSensors.addHandler(event -> {
-                        if(event.sensorNum == 1){
-                            intake.updateBreaker1(event.interrupted);
-                        } else{
-                            intake.updateBreaker2(event.interrupted);
-                        }
-                        return EventManager.EventHandled.ok();
-                    });
+                    class DriveSettings {
+                        boolean fieldCentric = false;
+                    }
 
+                    DriveSettings driveSettings = new DriveSettings();
                     EventManager.Handler<GamepadD.Delta> drivetrainHandler =
                             GamepadD.gamepad1Handler(event -> {
-//                                if (event.leftBumperWasPressed()) {
-//                                    driveSettings.fieldCentric = !driveSettings.fieldCentric;
-//                                    if (driveSettings.fieldCentric) drivetrain.fieldCentric();
-                                     drivetrain.robotCentric();
-//                                }
-
+                                if (event.dpadDownWasPressed()) {
+                                    driveSettings.fieldCentric = !driveSettings.fieldCentric;
+                                    if (driveSettings.fieldCentric) drivetrain.fieldCentric();
+                                    else drivetrain.robotCentric();
+                                }
                                 drivetrain.sendDrivePowers(
                                         -event.leftStickY(),
                                         -event.leftStickX(),
                                         -event.rightStickX());
-                                if(checkFiberStatus(drivetrain)) {
-                                    return EventManager.EventHandled.ok();
-                                } else{
-                                    return EventManager.EventHandled.remove();
-                                }
+                                return EventManager.EventHandled.ok();
                             });
 
                     EventManager.Handler<GamepadD.Delta> intakeTransferHandler =
                             GamepadD.gamepad1Handler(event -> {
-
                                         if(event.rightTriggerOver(0.3)){
                                             setManualIntakeTransfer = true;
                                         }
@@ -111,11 +109,7 @@ public class DrivetrainIntakeTest {
                                                 transfer.runPowerTillDetection(event.rightTrigger());
                                             }
                                         }
-                                        if(checkFiberStatus(transfer) && checkFiberStatus(intake) && transferSensors.fiber().status().alive()){
-                                            return EventManager.EventHandled.ok();
-                                        } else{
-                                            return EventManager.EventHandled.remove();
-                                        }
+                                        return EventManager.EventHandled.ok();
                                     }
 
                     );
@@ -124,16 +118,10 @@ public class DrivetrainIntakeTest {
                                         if(event.triangleWasPressed()){
                                             shooter.setUseDefaultVelocity(false);
                                             shooter.fixedVelocity(1450, false);
-
-
                                         } else if(event.squareWasPressed()){
                                             shooter.off();
                                         }
-                                        if(checkFiberStatus(shooter)){
-                                            return EventManager.EventHandled.ok();
-                                        } else{
-                                            return EventManager.EventHandled.remove();
-                                        }
+                                        return EventManager.EventHandled.ok();
                                     }
 
                             );
@@ -147,11 +135,7 @@ public class DrivetrainIntakeTest {
                                 } else if(event.dpadRightWasPressed()){
                                     transferGate.setClosed();
                                 }
-                                if(checkFiberStatus(transferGate) && checkFiberStatus(intake) && checkFiberStatus(transfer)){
-                                    return EventManager.EventHandled.ok();
-                                } else{
-                                    return EventManager.EventHandled.remove();
-                                }
+                                return EventManager.EventHandled.ok();
                             });
 
                     ctx.waitForStart();
@@ -160,15 +144,18 @@ public class DrivetrainIntakeTest {
                     ctx.gamepadD().addHandler(drivetrainHandler);
                     ctx.gamepadD().addHandler(transferGateHandler);
                     ctx.gamepadD().addHandler(shooterHandler);
+
+                    loop(
+                            exec(() -> {
+                                poseTelemetry.setValue(localizer.pose());
+                            })
+
+                    ).spawnable().spawnLink();
                     ctx.dropToScheduler();
                     return null;
 
                 }
         );
-    }
-
-    private static boolean checkFiberStatus(SwitchedStateMachine stateMachine){
-        return stateMachine.fiber().status().alive();
     }
 
 
