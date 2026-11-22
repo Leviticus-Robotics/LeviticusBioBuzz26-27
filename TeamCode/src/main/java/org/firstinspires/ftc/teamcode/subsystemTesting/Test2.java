@@ -64,7 +64,7 @@ public class Test2 {
                     TransferGate transferGate = new TransferGate(ctx);
                     TransferBeamBreak transferSensors = new TransferBeamBreak(ctx);
                     BallCounter ballCounter = new BallCounter(intake, transfer);
-//                    FlowerWedge flowerWedge = new FlowerWedge(ctx);
+                    FlowerWedge flowerWedge = new FlowerWedge(ctx);
 
                     Telemetry.Item ballCounterTelemetry = ctx.telemetry().addData(
                             "BallCounter/Balls", "waiting");
@@ -161,11 +161,13 @@ public class Test2 {
                                         transfer.fixedPower(-1);
                                         transferGate.setClosed();
                                     }
-                                    if(!event.leftBumper() && !event.rightBumper() && !(event.rightTrigger() > 0.2)){
+                                    if(event.leftBumperWasReleased() && event.rightBumperWasReleased() && event.rightTriggerPassedUnder(0.2)){
                                         intake.fixedPower(0);
                                         transfer.fixedPower(0);
                                         transferGate.setClosed();
                                     }
+
+
 
 
                                     return EventManager.EventHandled.ok();
@@ -173,15 +175,15 @@ public class Test2 {
                             );
 
 
-//                    EventManager.Handler<GamepadD.Delta> flowerMechHandler =
-//                        GamepadD.gamepad1Handler(event -> {
-//                            if(event.leftTriggerPassedOver(0.5)){
-//                                if (flowerWedge.getPrevPosition() == FlowerWedge.UP_POSITION) flowerWedge.setDown();
-//                                else flowerWedge.setUp();
-//                            }
-//                            return EventManager.EventHandled.ok();
-//                        }
-//                    );
+                    EventManager.Handler<GamepadD.Delta> flowerMechHandler =
+                        GamepadD.gamepad1Handler(event -> {
+                            if(event.leftTriggerPassedOver(0.5)){
+                                if (flowerWedge.getPrevPosition() == FlowerWedge.UP_POSITION) flowerWedge.setDown();
+                                else flowerWedge.setUp();
+                            }
+                            return EventManager.EventHandled.ok();
+                        }
+                    );
 
 //
 //                    expression((scope, self) -> {
@@ -199,7 +201,7 @@ public class Test2 {
 //                    turret.setTrackingMode(false);
                     ctx.gamepadD().addHandler(intakeTransferHandler);
                     ctx.gamepadD().addHandler(drivetrainHandler);
-//                    ctx.gamepadD().addHandler(flowerMechHandler);
+                    ctx.gamepadD().addHandler(flowerMechHandler);
 
 
 
@@ -209,7 +211,7 @@ public class Test2 {
                                     exec(()-> shooterVelocity.setValue(shooter.getVelocity())),
                                     exec(()-> shooterTargetVelocity.setValue(shooter.getShootingTargetVelocity())),
                                     exec(() -> poseTelemetry.setValue(localizer.pose())),
-                                    waitFor.bind(seconds(0.1))
+                                    waitFor.bind(seconds(0.25))
                             )
 
                     ).spawnable().spawnLink();
