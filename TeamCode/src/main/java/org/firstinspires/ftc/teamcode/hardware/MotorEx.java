@@ -89,8 +89,8 @@ public class MotorEx extends Motor {
      */
     @Override
     public double getVelocity() {
-        return getCorrectedVelocity();
-    }
+        return getVelocity();
+    }  //return getVelocity();
 
     /**
      * @return the acceleration of the motor in ticks per second squared
@@ -124,11 +124,11 @@ public class MotorEx extends Motor {
      * @param power power to be assigned to the motor if difference is greater than caching tolerance or if power is exactly 0
      */
     public void setPower(double power) {
-//        if ((Math.abs(power - motorEx.getPower()) > cachingTolerance) || (power == 0 && motorEx.getPower() != 0)) {
+        if ((Math.abs(power - motorEx.getPower()) > cachingTolerance) || (power == 0 && motorEx.getPower() != 0)) {
             lastPower = power;
             motorEx.setPower(power);
             recentOutput = power;
-//        }
+        }
     }
 
     /**
