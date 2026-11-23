@@ -26,7 +26,7 @@ public class GobildaLightOutputs extends SwitchedStateMachine {
         return solidColor(ColorMode.Black);
     }
 
-    enum ColorMode{
+    public enum ColorMode{
         Black(0.0),
         Red(.277),
         Orange(.333),
@@ -47,7 +47,7 @@ public class GobildaLightOutputs extends SwitchedStateMachine {
         }
     }
     public GobildaLightOutputs(Context ctx) {
-        led = ctx.hardwareMap().get(Servo.class, "Gobilda LED");
+        led = ctx.hardwareMap().get(Servo.class, "lL");
         led.setPosition(1);
     }
     private Mode solidColor(ColorMode color) {
