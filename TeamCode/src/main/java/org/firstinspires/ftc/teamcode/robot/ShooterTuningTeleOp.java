@@ -13,9 +13,7 @@ import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.pedropathing.math.Pose;
 
-import org.firstinspires.ftc.robotcore.external.Event;
-import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.game.ALLIANCE;
+import org.firstinspires.ftc.teamcode.game.Alliance;
 import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
 
 import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;
@@ -32,11 +30,11 @@ public class ShooterTuningTeleOp {
 
 
 
-    public static final MercurialFTC.RegisterableProgram ShooterTesting = teleOp(new Pose(0, 0), ALLIANCE.RED, HiveTargetSide.Left)
+    public static final MercurialFTC.RegisterableProgram ShooterTesting = teleOp(new Pose(0, 0), Alliance.RED, HiveTargetSide.Left)
             .withName("Shooter Test")
             .withGroup("Testing");
 
-    public static MercurialFTC.RegisterableProgram teleOp(Pose startPose, ALLIANCE alliance, HiveTargetSide startSide) {
+    public static MercurialFTC.RegisterableProgram teleOp(Pose startPose, Alliance alliance, HiveTargetSide startSide) {
         return MercurialFTC.teleop(ctx -> {
                     RobotShooterTuning r = new RobotShooterTuning(ctx, alliance, startSide);
 //                    r.localizer.setPose(startPose);

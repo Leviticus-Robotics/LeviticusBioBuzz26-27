@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.robot;
 
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.exec;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.loop;
-import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.race;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.seconds;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.sequence;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitFor;
@@ -11,14 +10,13 @@ import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitUnt
 import com.acmerobotics.dashboard.config.Config;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.game.Alliance;
 import org.firstinspires.ftc.teamcode.helper.AngleHelper;
-import org.firstinspires.ftc.teamcode.helper.BallSlot;
 import org.firstinspires.ftc.teamcode.constants.Constants;
-import org.firstinspires.ftc.teamcode.game.ALLIANCE;
 import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
-import org.firstinspires.ftc.teamcode.helper.HiveSideHelper;
+import org.firstinspires.ftc.teamcode.sensor.HiveSideHelper;
 import org.firstinspires.ftc.teamcode.sensor.IntakeBallSensors;
-import org.firstinspires.ftc.teamcode.sensor.TransferBeamBreak;
+import org.firstinspires.ftc.teamcode.sensor.TransferSensors;
 import org.firstinspires.ftc.teamcode.sensor.TurretEncoder;
 import org.firstinspires.ftc.teamcode.sensor.VoltageMonitor;
 import org.firstinspires.ftc.teamcode.helper.BallCounter;
@@ -51,7 +49,7 @@ public class RobotCombined {
     FlowerWedge flowerWedge;
     Turret turret;
     IntakeBallSensors intakeSensors;
-    TransferBeamBreak transferSensors;
+    TransferSensors transferSensors;
     VoltageMonitor voltageMonitor;
     TurretEncoder turretEncoder;
     TransferGate transferGate;
@@ -98,28 +96,11 @@ public class RobotCombined {
 
         //send intake sensors over to the intake
         intakeSensors = new IntakeBallSensors(ctx);
-        intakeSensors.addHandler(event -> {
-            if(event.getBallSlot()== BallSlot.Slot.LEFT){
-                intake.updateIntakeSpot1(event.getBallDetected());
-            } else{
-                intake.updateIntakeSpot2(event.getBallDetected());
-            }
-            return EventManager.EventHandled.ok();
-        });
 
 
         //send transfer beam breakers to transfer & intake
-        transferSensors = new TransferBeamBreak(ctx);
-        transferSensors.addHandler(event -> {
-            if(event.sensorNum == 1){
-                transfer.updateBreaker1(event.interrupted);
-                intake.updateBreaker1(event.interrupted);
-            } else{
-                transfer.updateBreaker2(event.interrupted);
-                intake.updateBreaker2(event.interrupted);
-            }
-            return EventManager.EventHandled.ok();
-        });
+        transferSensors = new TransferSensors(ctx);
+
 
 
 
@@ -202,7 +183,7 @@ public class RobotCombined {
 
     //assumes we already have balls
     //doesn't check any conditions for criteria for shooting
-    private Continuation.Builder<?> assistedShootSequence(ALLIANCE alliance, HiveTargetSide side){
+    private Continuation.Builder<?> assistedShootSequence(Alliance alliance, HiveTargetSide side){
         return sequence(
                 //start the shooter in default shooting mode, but still calculate w/ lutSOTM
                 exec(() -> {
@@ -229,12 +210,12 @@ public class RobotCombined {
     //does full cycle autonomously
     //assumes transfer gate already closed
     //doesnt autodrive though
-    private Continuation.Builder<?> automaticCycle(ALLIANCE alliance, HiveTargetSide side, double waitBallsTimeout){
+    private Continuation.Builder<?> automaticCycle(Alliance alliance, HiveTargetSide side, double waitBallsTimeout){
         return sequence(
             exec(() -> {
                 activeBehavior = ActiveBehavior.AUTOMATIC_COLLECTING;
                 closeTransferGate();
-                intake.runPowerTillDetectionMode(1.0);
+                intake.runPowerTillDetection(1.0);
                 transfer.runPowerTillDetection(1.0);
 
                 shooter.lutSOTM(alliance, side);
@@ -256,7 +237,7 @@ public class RobotCombined {
         );
     }
 
-    private Continuation.Builder<?> automaticMode(ALLIANCE alliance, HiveTargetSide side, double waitBallsTimeout, boolean repeat){
+    private Continuation.Builder<?> automaticMode(Alliance alliance, HiveTargetSide side, double waitBallsTimeout, boolean repeat){
         Continuation.Builder<?> cycle = automaticCycle(alliance, side, waitBallsTimeout);
         return repeat ? loop(cycle)
                 : sequence(cycle, exec(() -> activeBehavior = ActiveBehavior.NONE));
@@ -335,7 +316,7 @@ public class RobotCombined {
 
 
 
-    public void startAssistedShoot(ALLIANCE alliance, HiveTargetSide side){
+    public void startAssistedShoot(Alliance alliance, HiveTargetSide side){
         cancelActiveProcesses();
         prepareFeed();
         activeBehavior = ActiveBehavior.ASSISTED_WAITING;
@@ -344,7 +325,7 @@ public class RobotCombined {
                 .spawnLink();
     }
 
-    public void startAutomatic(ALLIANCE alliance, HiveTargetSide side, double timeout, boolean repeat){
+    public void startAutomatic(Alliance alliance, HiveTargetSide side, double timeout, boolean repeat){
         cancelActiveProcesses();
         prepareFeed();
         activeBehavior = ActiveBehavior.AUTOMATIC_COLLECTING;
@@ -378,7 +359,7 @@ public class RobotCombined {
             shooter.setUseDefaultVelocity(transfer.numBallsDetected() == 0);
         }
     }
-    public void handleTransferGateTrigger(ALLIANCE alliance, HiveTargetSide side, boolean manualIntakeActive) {
+    public void handleTransferGateTrigger(Alliance alliance, HiveTargetSide side, boolean manualIntakeActive) {
         //Case 1: Driver manually operating intake/transfer and gate button pressed
         if (activeBehavior == ActiveBehavior.DIRECT_MANUAL){
             if (manualIntakeActive && !gateOpenCommanded) {

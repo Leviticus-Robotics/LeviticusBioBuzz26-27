@@ -20,29 +20,33 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 @Config
 public class FlowerWedge extends SwitchedStateMachine {
     ServoEx servo;
-    Telemetry.Item stateTelemetry;
+    private Telemetry.Item stateTelemetry;
+    private Telemetry.Line endBreakLine;
     Mode down;
     Mode up;
-    public static double DOWN_POSITION = 0.30;
+    public static double DOWN_POSITION = 0.25;
     public static double UP_POSITION = 0.65;
     public static boolean INVERTED = false;
+    public boolean isDown;
 
     public FlowerWedge(Context ctx){
         servo = new ServoEx(ctx.hardwareMap(), ConfigNames.flowerMechanism);
-        servo.setInverted(INVERTED);
-        servo.setPwm(PwmControl.PwmRange.defaultRange);//can alter pwm range like so
+        servo.setInverted(INVERTED);//can alter pwm range like so
         servo.setCachingTolerance(0.0001); //can alter caching tolerance like so
 
         stateTelemetry = ctx.telemetry().addData("FlowerWedge/State", "unknown");
+        endBreakLine = ctx.telemetry().addLine("-----------------------");
         //start from this mode
         up = entranceMode(from -> {
             stateTelemetry.setValue("up");
             servo.set(UP_POSITION);
+            isDown = false;
         });
 
         down = entranceMode(self -> {
             stateTelemetry.setValue("down");
             servo.set(DOWN_POSITION);
+            isDown = true;
         });
     }
     @NonNull
@@ -51,7 +55,7 @@ public class FlowerWedge extends SwitchedStateMachine {
         return up;
     }
 
-    public Mode customPosMode(double pos){
+    private Mode customPosMode(double pos){
         return entranceMode(from -> {
             servo.set(pos);
         });

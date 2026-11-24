@@ -34,7 +34,7 @@ apply plugin: 'dev.frozenmilk.sinister.sloth.load'
 android {
     namespace = 'org.firstinspires.ftc.teamcode'
 
-  
+
     packagingOptions {
         jniLibs.useLegacyPackaging true
     }

@@ -1,17 +1,13 @@
-package org.firstinspires.ftc.teamcode.subsystemTesting;
+package org.firstinspires.ftc.teamcode.subsystemTesting.transfer;
 
 
 import com.acmerobotics.dashboard.config.Config;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.constants.Constants;
 import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
 
 import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
-import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
-import dev.frozenmilk.dairy.mercurial.processes.Fiber;
 import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 

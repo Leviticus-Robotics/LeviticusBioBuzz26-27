@@ -1,9 +1,7 @@
-package org.firstinspires.ftc.teamcode.subsystemTesting;
+package org.firstinspires.ftc.teamcode.subsystemTesting.intake;
 
 import com.acmerobotics.dashboard.config.Config;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Transfer;
 import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
@@ -11,8 +9,6 @@ import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
 import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
-import dev.frozenmilk.dairy.mercurial.processes.Fiber;
-import dev.frozenmilk.dairy.mercurial.processes.StateMachine;
 import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 

@@ -15,6 +15,7 @@ import com.seattlesolvers.solverslib.util.MathUtils;
 
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.game.Alliance;
 import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
@@ -24,7 +25,6 @@ import dev.frozenmilk.dairy.mercurial.ftc.Context;
 import dev.frozenmilk.dairy.mercurial.processes.Channel;
 import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
-import org.firstinspires.ftc.teamcode.game.ALLIANCE;
 
 
 /** Shooter
@@ -38,7 +38,7 @@ public class Shooter extends SwitchedStateMachine {
     public MotorEx shooterLeft; // has the encoder
     public MotorEx shooterRight; // motor wire is right
     ServoEx hoodServo;
-    MotionState currentMotionState;
+    Channel<MotionState> motionStates = linkedSingleChannel();
     public static double[] pidCoefficients = new double[] {0.003, 0.0, 0.0};
     public static double[] feedforwardCoefficients = new double[]{0.0325, 0.00037090, 0};
     public static boolean usePIDCoefficients = true;
@@ -57,7 +57,10 @@ public class Shooter extends SwitchedStateMachine {
     private double currentTargetVelocity;//velocity that is currently being sent to the motors
     private double shootingTargetVelocity;//desired velocity for shooting (not default velocity)
     boolean useDefaultVelocity = false; //set it to true initally
+    private Telemetry.Line startLine;
     private Telemetry.Item stateTelemetry;
+    private Telemetry.Item fiberDuration;
+    private Telemetry.Line endBreakLine;
     Mode off;
     AimCalculator aimCalculator;
     public static double DEFAULT_TOLERANCE = 50;
@@ -66,9 +69,13 @@ public class Shooter extends SwitchedStateMachine {
     //Express Constants in terms of lines (array of 4): (m1, b1, m2, b2)
     //This is for close side, far side is just the opposite but uses the same constants
     public static double[] WITHIN_SHOOTING_RANGE = new double[]{1, 10, -1, 154};
-    public static double DEFAULT_VELOCITY = 500; // ticks/sec -> this is the velocity the shooter will go to when we don't need to shoot
+    public static double DEFAULT_VELOCITY = 800; // ticks/sec -> this is the velocity the shooter will go to when we don't need to shoot
+
     public Shooter(Context ctx){
-        stateTelemetry = ctx.telemetry().addData("Shooter/State", "unknown");
+        startLine = ctx.telemetry().addLine("Shooter");
+        stateTelemetry = ctx.telemetry().addData("State", "unknown");
+        fiberDuration = ctx.telemetry().addData("Fiber Duration(s)", "unknown");
+        endBreakLine = ctx.telemetry().addLine("-----------------------");
         aimCalculator = new AimCalculator();
 
         shooterLeft = new MotorEx(ctx.hardwareMap(), ConfigNames.shooterLeft);
@@ -183,19 +190,24 @@ public class Shooter extends SwitchedStateMachine {
     }
 
     public Mode lutSOTMMode(
-            ALLIANCE alliance,
+            Alliance alliance,
             HiveTargetSide side
         ){
-        return mode(
-            self -> {//used so that if it switches mode, it performs second block logic
+        return entranceMode(
+                self -> {
                     shooterLeft.setRunMode(Motor.RunMode.VelocityControl);
                     shooterRight.setRunMode(Motor.RunMode.RawPower);
                     stateTelemetry.setValue("LUT SOTM (" + alliance + " " + side);
-                        if(currentMotionState != null) {
-                            Pose robotPose = currentMotionState.pose();
-                            Pose targetShootPose = getPose(alliance, side);
+                    updateTelemetryAll();
+                },
+                self -> {//used so that if it switches mode, it performs second block logic
+                    updateTelemetryAll();
+                    MotionState motionState = motionStates.query();//query to keep for now
+                    if(motionState != null) {
+                        Pose robotPose = motionState.pose();
+                        Pose targetShootPose = getPose(alliance, side);
 
-                            double[] solution = aimCalculator.targetPowersHeading(robotPose, currentMotionState.velocity().toVector(), targetShootPose);
+                            double[] solution = aimCalculator.targetPowersHeading(robotPose, motionState.velocity().toVector(), targetShootPose);
                             double targetVelocity = solution[0];
 
                             //pass in current voltage as long as value is valid
@@ -206,7 +218,7 @@ public class Shooter extends SwitchedStateMachine {
                                 targetHeadingChannel.send(Angle.fromRadians(solution[1]));//send target heading over through channel
                             }
                             setShooter(currentTargetVelocity);
-                            setHood(solution[2]); //set hood servo position
+//                            setHood(solution[2]); //set hood servo position
 
                         }
                         return self;
@@ -227,7 +239,7 @@ public class Shooter extends SwitchedStateMachine {
         double deltaTheta = angle1 - robotPose.heading();
         return Angle.fromRadians(angle1 + deltaTheta * AimCalculator.robotHeadingAimCorrectionFactor).wrap();//wrap -PI to PI for turret
     }
-    public void lutSOTM(ALLIANCE alliance, HiveTargetSide side){
+    public void lutSOTM(Alliance alliance, HiveTargetSide side){
         switchTo(lutSOTMMode(alliance, side));
     }
     public void setHood(double pos){
@@ -236,16 +248,21 @@ public class Shooter extends SwitchedStateMachine {
 
     //two channels used: one for the target heading(to go to turret or save) & one for velocity status
     public Mode lutStaticMode(
-              ALLIANCE alliance,
+              Alliance alliance,
               HiveTargetSide side
         ){
-        return mode(
+        return entranceMode(
                 self -> {
                     shooterLeft.setRunMode(Motor.RunMode.VelocityControl);
                     shooterRight.setRunMode(Motor.RunMode.RawPower);
                     stateTelemetry.setValue("LUT Static (" + alliance + " " + side);
-                    if(currentMotionState != null) {
-                        Pose robotPose = currentMotionState.pose();
+                    updateTelemetryAll();
+                },
+                self -> {
+                    updateTelemetryAll();
+                    MotionState motionState = motionStates.query();
+                    if(motionState != null) {
+                        Pose robotPose = motionState.pose();
                         Pose targetShootPose = getPose(alliance, side);
 
                         distanceFromGoal = MathUtils.clamp(
@@ -272,7 +289,7 @@ public class Shooter extends SwitchedStateMachine {
         );
     }
 
-    public void lutStatic(ALLIANCE alliance, HiveTargetSide side){
+    public void lutStatic(Alliance alliance, HiveTargetSide side){
         switchTo(lutStaticMode(alliance, side));
     }
 
@@ -292,33 +309,44 @@ public class Shooter extends SwitchedStateMachine {
     }
     private Mode fixedVelocityMode(double targetVelocity, double hoodPosition){
         currentTargetVelocity = targetVelocity;
-        return mode(
-      self -> {
-                stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
-                shooterLeft.setRunMode(MotorEx.RunMode.VelocityControl);
-                shooterRight.setRunMode(MotorEx.RunMode.RawPower);
-                shootingTargetVelocity = targetVelocity; // need to update
-                currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
-                setShooter(currentTargetVelocity);
-                setHood(hoodPosition);
-                return self;
-        });
+        return entranceMode(
+                self -> {
+                    stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
+                    updateTelemetryAll();
+                },
+                self -> {
+                    updateTelemetryAll();
+                    shooterLeft.setRunMode(MotorEx.RunMode.VelocityControl);
+                    shooterRight.setRunMode(MotorEx.RunMode.RawPower);
+                    shootingTargetVelocity = targetVelocity; // need to update
+                    currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
+                    setShooter(currentTargetVelocity);
+                    setHood(hoodPosition);
+                    return self;
+                }
+        );
     }
 
     private Mode fixedVelocityMode(double targetVelocity, boolean setHoodDefault){
         currentTargetVelocity = targetVelocity;
-        return mode(self -> {
-                stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
-                shooterLeft.setRunMode(Motor.RunMode.VelocityControl);
-                shooterRight.setRunMode(Motor.RunMode.RawPower);
-                shootingTargetVelocity = targetVelocity; // need to update
-                currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
-                setShooter(currentTargetVelocity);
-                if (setHoodDefault) {
-                    setHood(HOOD_DEFAULT);
+        return entranceMode(
+                self -> {
+                    stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
+                    updateTelemetryAll();
+                },
+                self -> {
+                    updateTelemetryAll();
+                    shooterLeft.setRunMode(Motor.RunMode.VelocityControl);
+                    shooterRight.setRunMode(Motor.RunMode.RawPower);
+                    shootingTargetVelocity = targetVelocity; // need to update
+                    currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
+                    setShooter(currentTargetVelocity);
+                    if (setHoodDefault) {
+                        setHood(HOOD_DEFAULT);
+                    }
+                    return self;
                 }
-                return self;
-        });
+        );
     }
 
     //this will be the channel that the target heading gets sent over to
@@ -340,6 +368,7 @@ public class Shooter extends SwitchedStateMachine {
         return entranceMode(
                 from -> {
                     stateTelemetry.setValue("Fixed Power (" + power + ")");
+                    updateTelemetryAll();
                     shooterLeft.setRunMode(Motor.RunMode.RawPower);
                     shooterRight.setRunMode(Motor.RunMode.RawPower);
                     shooterLeft.set(power);
@@ -358,8 +387,8 @@ public class Shooter extends SwitchedStateMachine {
         switchTo(off);
     }
 
-    public Pose getPose(ALLIANCE alliance, HiveTargetSide side){
-        if(alliance == ALLIANCE.BLUE){
+    public Pose getPose(Alliance alliance, HiveTargetSide side){
+        if(alliance == Alliance.BLUE){
             return side == HiveTargetSide.Right ? AIM_BLUE_RIGHT : AIM_BLUE_LEFT;
         } else{
             return side == HiveTargetSide.Right ? AIM_RED_RIGHT : AIM_RED_LEFT;
@@ -401,7 +430,7 @@ public class Shooter extends SwitchedStateMachine {
     //if close side, it has to be less than both of the lines
     //if far side, it has to be greater than boht of the lines
     public boolean isValidShootPosition(HiveTargetSide side){
-        MotionState motionState = currentMotionState;
+        MotionState motionState = motionStates.query();
         if(motionState == null) return false;
         Pose robotPose = motionState.pose();
         if(side == HiveTargetSide.Right){
@@ -431,6 +460,10 @@ public class Shooter extends SwitchedStateMachine {
 
 
     public void sendMotionState(MotionState motionState){
-        currentMotionState = motionState;
+         motionStates.send(motionState);
+    }
+
+    public void updateTelemetryAll(){
+        fiberDuration.setValue(fiber().getPollDurationSeconds());
     }
 }

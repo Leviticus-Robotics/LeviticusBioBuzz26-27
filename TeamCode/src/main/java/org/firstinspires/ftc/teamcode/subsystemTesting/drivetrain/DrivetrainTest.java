@@ -1,20 +1,13 @@
-package org.firstinspires.ftc.teamcode.subsystemTesting;
+package org.firstinspires.ftc.teamcode.subsystemTesting.drivetrain;
 
 import com.acmerobotics.dashboard.config.Config;
-import com.pedropathing.localization.Localizer;
 import com.pedropathing.math.Pose;
 
-import org.firstinspires.ftc.teamcode.constants.Constants;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
-import org.firstinspires.ftc.teamcode.subsystems.Intake;
-import org.firstinspires.ftc.teamcode.subsystems.Transfer;
-import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
 
 import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
-import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
-import dev.frozenmilk.dairy.mercurial.processes.Fiber;
 import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 

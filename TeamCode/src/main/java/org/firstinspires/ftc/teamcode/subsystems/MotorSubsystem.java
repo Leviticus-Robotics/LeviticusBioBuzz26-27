@@ -19,8 +19,8 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 public abstract class MotorSubsystem extends SwitchedStateMachine{
     protected MotorEx motor;
 
-    protected Telemetry.Item stateTelemetry;
     protected Telemetry.Item currentTelemetry;
+    protected Telemetry.Item modeTelemtry;
     protected Mode offMode;
     protected double currentVoltage;
     public static boolean VOLTAGE_COMPENSATION = false;
@@ -31,7 +31,7 @@ public abstract class MotorSubsystem extends SwitchedStateMachine{
     protected Mode fixedVelocityMode(double targetVelocity, double tolerance, Channel<VelocityStatus> resultChannel){
         boolean[] notified = new boolean[1];
         return mode(self -> {
-                    stateTelemetry.setValue("Fixed Velocity (" + targetVelocity + ")");
+                    modeTelemtry.setValue("Fixed Velocity (" + targetVelocity + ")");
                     motor.setRunMode(MotorEx.RunMode.VelocityControl);
                     motor.set(targetVelocity, currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
                     if (resultChannel != null && notified[0] == false) {
@@ -67,7 +67,7 @@ public abstract class MotorSubsystem extends SwitchedStateMachine{
     protected Mode fixedPowerMode(double power){//parametrized so it keeps holding the velocity
         return mode(
                 self -> {
-                    stateTelemetry.setValue("Fixed Power (" + power + ")");
+                    modeTelemtry.setValue("Fixed Power (" + power + ")");
                     motor.setRunMode(MotorEx.RunMode.RawPower);
                     motor.set(power);
                     return self;

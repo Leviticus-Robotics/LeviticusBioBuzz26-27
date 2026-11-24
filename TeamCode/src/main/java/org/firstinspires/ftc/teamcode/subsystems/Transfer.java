@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import com.seattlesolvers.solverslib.hardware.motors.Motor;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
 import org.firstinspires.ftc.teamcode.hardware.MotorEx;
@@ -26,14 +27,21 @@ public class Transfer extends MotorSubsystem {
     boolean breaker1Detection = false;
     boolean breaker2Detection = false;
 
-    public static double POST_DETECTION_WAIT_MS = 300;//wait X ms in runTillTransferDetect() modes
+    public static double POST_DETECTION_WAIT_MS = 0;//wait X ms in runTillTransferDetect() modes
     private final ElapsedTime detectionTimer = new ElapsedTime();
     boolean detectionDelayStated = false;
-
+    private Telemetry.Line startLine;
+    private Telemetry.Item extraStateTelemetry;
+    private Telemetry.Item transferPowerTelemetry;
+    private Telemetry.Line endBreakLine;
 
     public Transfer(Context ctx){
-        stateTelemetry = ctx.telemetry().addData("Transfer/State", "unknown");
-        currentTelemetry =  ctx.telemetry().addData("Transfer/Current(Amps)", "unknown");
+        startLine = ctx.telemetry().addLine("Transfer");
+        modeTelemtry = ctx.telemetry().addData("State", "unknown");
+        extraStateTelemetry = ctx.telemetry().addData("Extra info", "unknown");
+        transferPowerTelemetry = ctx.telemetry().addData("Transfer Power", "unknown");
+        currentTelemetry =  ctx.telemetry().addData("Current(Amps)", "unknown");
+        endBreakLine = ctx.telemetry().addLine("-----------------------");
         motor = new MotorEx(ctx.hardwareMap(), ConfigNames.transfer);
         motor.motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         motor.setInverted(false);
@@ -46,7 +54,7 @@ public class Transfer extends MotorSubsystem {
         offMode = entranceMode(from ->{
             motor.setRunMode(MotorEx.RunMode.RawPower);
             motor.set(0);
-            stateTelemetry.setValue("Off");
+            modeTelemtry.setValue("Off");
         });
 
     }
@@ -75,40 +83,44 @@ public class Transfer extends MotorSubsystem {
 
 
     //run target velocity on till detect two balls, then turn off transfer
-    public Mode ruTillDetectionMode(double target, boolean velocityRun){
-        detectionDelayStated = false;
-        return mode(self -> {
-            if(velocityRun){
-                motor.setRunMode(Motor.RunMode.VelocityControl);
-            } else{
-                motor.setRunMode(MotorEx.RunMode.RawPower);
-            }
-
-            updateCurrent();
-            //keep it simple for now assuming breakers working
-            if(shouldTransferContinue()){
-                if(velocityRun) {
-                    double voltage = currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE;
-                    motor.set(target, voltage);
-                } else{
-                    motor.set(target);
+    public Mode runTillDetectionMode(double target, boolean velocityRun){
+        return entranceMode(self -> {
+                detectionDelayStated = false;
+                if (velocityRun) {
+                    motor.setRunMode(Motor.RunMode.VelocityControl);
+                } else {
+                    motor.setRunMode(MotorEx.RunMode.RawPower);
                 }
-                stateTelemetry.setValue(detectionDelayStated ? "Detected. Finishing Transfer" : "Transfer on");
+                updateCurrent();
+            },
+            self -> {
+                updateCurrent();
+                //keep it simple for now assuming breakers working
+                if(shouldTransferContinue()){
+                    if(velocityRun) {
+                        double voltage = currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE;
+                        motor.set(target, voltage);
+                    } else{
+                        motor.set(target);
+                    }
+                    extraStateTelemetry.setValue(detectionDelayStated ? "Detected. Finishing Transfer" : "Transfer on");
+                }
+                else {
+                    motor.set(0);
+                    extraStateTelemetry.setValue("Transfer Wait");
+                }
+                transferPowerTelemetry.setValue(motor.get());
+                return self;
             }
-            else {
-                motor.set(0);
-                stateTelemetry.setValue("Transfer Wait");
-            }
-            return self;
-        });
+        );
     }
 
 
     public void runPowerTillDetection(double power){
-        switchTo(ruTillDetectionMode(power, false));
+        switchTo(runTillDetectionMode(power, false));
     }
     public void runVelocityTillDetection(double velocity){
-        switchTo(ruTillDetectionMode(velocity, true));
+        switchTo(runTillDetectionMode(velocity, true));
     }
 
     @Override
@@ -126,7 +138,7 @@ public class Transfer extends MotorSubsystem {
 
 
     private boolean shouldTransferContinue(){
-        if(!detectionDelayStated && detectFirstBall()){
+        if(!detectionDelayStated && detectTwoBalls()){
             detectionDelayStated = true;
             detectionTimer.reset();
         }//wait X seconds after first ball detection before turning off transfer motors

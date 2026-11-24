@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode.util;
 import androidx.annotation.NonNull;
+
+import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+
 import java.lang.Math;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 

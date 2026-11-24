@@ -10,18 +10,13 @@ import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitUnt
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.pedropathing.math.Pose;
-
-import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.game.ALLIANCE;
+import org.firstinspires.ftc.teamcode.game.Alliance;
 import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
 
 import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
-import dev.frozenmilk.dairy.mercurial.processes.Fiber;
-import dev.frozenmilk.dairy.mercurial.processes.Spawnable;
 import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 
@@ -31,11 +26,11 @@ public class FullSystemsTeleOp {
 
 
 
-    public static final MercurialFTC.RegisterableProgram SystemTesting = teleOp(new Pose(0, 0), ALLIANCE.RED, HiveTargetSide.Right)
+    public static final MercurialFTC.RegisterableProgram SystemTesting = teleOp(new Pose(0, 0), Alliance.RED, HiveTargetSide.Right)
             .withName("Full TeleOp Mock")
             .withGroup("Competition");
 
-    public static MercurialFTC.RegisterableProgram teleOp(Pose startPose, ALLIANCE alliance, HiveTargetSide startSide) {
+    public static MercurialFTC.RegisterableProgram teleOp(Pose startPose, Alliance alliance, HiveTargetSide startSide) {
         return MercurialFTC.teleop(ctx -> {
             RobotCombined r = new RobotCombined(ctx, startSide);
             r.localizer.setPose(startPose);
@@ -59,7 +54,7 @@ public class FullSystemsTeleOp {
                         GamepadD.gamepad1Handler(event -> {
                             if (event.leftBumperWasPressed()) {
                                 driveSettings.fieldCentric = !driveSettings.fieldCentric;
-                                if (driveSettings.fieldCentric) r.drivetrain.fieldCentric();
+                                if (driveSettings.fieldCentric) r.drivetrain.fieldCentric(alliance);
                                 r.drivetrain.robotCentric();
                             }
 

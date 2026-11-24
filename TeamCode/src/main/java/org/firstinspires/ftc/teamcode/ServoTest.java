@@ -12,11 +12,11 @@ public class ServoTest extends OpMode {
     Servo servo;
     @Override
     public void init() {
-        servo = hardwareMap.get(Servo.class,  ConfigNames.testServo);
+        servo = hardwareMap.get(Servo.class,  ConfigNames.transferGate);
     }
 
     @Override
     public void loop() {
-        servo.setPosition(1);
+        servo.setPosition(0.50);
     }
 }

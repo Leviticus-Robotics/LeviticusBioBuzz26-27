@@ -7,6 +7,7 @@ import com.pedropathing.math.Pose;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.Constants;
+import org.firstinspires.ftc.teamcode.game.Alliance;
 import org.firstinspires.ftc.teamcode.localization.prediction.ControlInput;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusedLocalizer;
 import org.firstinspires.ftc.teamcode.localization.pedro.PredictiveLocalizer;
@@ -20,6 +21,7 @@ import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC.RegisterableProgram;
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
+import kotlin.reflect.jvm.internal.impl.descriptors.deserialization.PlatformDependentDeclarationFilter;
 
 /** Driveable Mercurial diagnostic for OctoQuad-only versus OctoQuad + process fusion. */
 @Config
@@ -28,11 +30,11 @@ public final class LocalizationDiagnostics {
     public static double slowMultiplier = 0.4;
     public static double predictionHorizonSeconds = 0.08;
 
-    public static final RegisterableProgram localizationDiagnostics = diagnostic(new Pose(0, 0))
+    public static final RegisterableProgram localizationDiagnostics = diagnostic(new Pose(0, 0), Alliance.RED)
             .withName("Localization Diagnostics")
             .withGroup("Testing");
 
-    public static RegisterableProgram diagnostic(Pose startPose) {
+    public static RegisterableProgram diagnostic(Pose startPose, Alliance alliance) {
         return MercurialFTC.teleop(ctx -> {
             Telemetry telemetry = new MultipleTelemetry(
                     ctx.telemetry(), FtcDashboard.getInstance().getTelemetry());
@@ -82,7 +84,7 @@ public final class LocalizationDiagnostics {
                     GamepadD.gamepad1Handler(event -> {
                         if (event.leftBumperWasPressed()) {
                             driveSettings.fieldCentric = !driveSettings.fieldCentric;
-                            if (driveSettings.fieldCentric) drivetrain.fieldCentric();
+                            if (driveSettings.fieldCentric) drivetrain.fieldCentric(alliance);
                             else drivetrain.robotCentric();
                         }
 

@@ -22,14 +22,11 @@ public class ConfigNames {
     public static String turretQuadratureEncoder = "BL";
 
     public static String flowerMechanism = "wedge";
+    public static String ballSensor1 = "b1";
+    public static String ballSensor2 = "b2";
 
-    public static String gobildaLeft1 = "g1";
-    public static String gobildaLeft2 = "g2";
-    public static String gobildaRight1 = "g3";
-    public static String gobildaRight2 = "g4";
-
-    public static String breaker1 = "b1";
-    public static String breaker2 = "b2";
+    public static String ballSensor3 = "b3";
+    public static String ballSensor4 = "b4";
 
     public static String transferGate = "tG";
 

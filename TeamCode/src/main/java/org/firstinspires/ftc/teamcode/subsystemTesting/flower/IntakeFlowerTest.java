@@ -1,11 +1,10 @@
-package org.firstinspires.ftc.teamcode.subsystemTesting;
+package org.firstinspires.ftc.teamcode.subsystemTesting.flower;
 
 import com.acmerobotics.dashboard.config.Config;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.helper.BallCounter;
-import org.firstinspires.ftc.teamcode.sensor.TransferBeamBreak;
+import org.firstinspires.ftc.teamcode.sensor.TransferSensors;
 import org.firstinspires.ftc.teamcode.subsystems.FlowerWedge;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Transfer;
@@ -14,8 +13,6 @@ import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
 import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
-import dev.frozenmilk.dairy.mercurial.processes.Fiber;
-import dev.frozenmilk.dairy.mercurial.processes.StateMachine;
 import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
 
 
@@ -34,7 +31,7 @@ public class IntakeFlowerTest {
                     Transfer transfer = new Transfer(ctx);
                     TransferGate transferGate = new TransferGate(ctx);
                     FlowerWedge flowerWedge = new FlowerWedge(ctx);
-                    TransferBeamBreak transferSensors = new TransferBeamBreak(ctx);
+                    TransferSensors transferSensors = new TransferSensors(ctx);
 
                     BallCounter ballCounter = new BallCounter(intake, transfer);
                     Telemetry.Item ballCounterTelemetry = ctx.telemetry().addData(
@@ -53,9 +50,9 @@ public class IntakeFlowerTest {
 
                     transferSensors.addHandler(event -> {
                         if(event.sensorNum == 1){
-                            intake.updateBreaker1(event.interrupted);
+                            intake.updateIntake1(event.interrupted);
                         } else{
-                            intake.updateBreaker2(event.interrupted);
+                            intake.updateIntake2(event.interrupted);
                         }
                         return EventManager.EventHandled.ok();
                     });

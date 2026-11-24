@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.subsystemTesting;
+package org.firstinspires.ftc.teamcode.subsystemTesting.shooter;
 import com.acmerobotics.dashboard.config.Config;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;

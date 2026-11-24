@@ -11,6 +11,8 @@ import com.pedropathing.paths.PathTracker;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.Constants;
+import org.firstinspires.ftc.teamcode.game.Alliance;
+import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
 import org.jetbrains.annotations.NotNull;
 import org.firstinspires.ftc.teamcode.localization.prediction.ControlInput;
 import org.firstinspires.ftc.teamcode.localization.pedro.FusionMecanumDrivetrain;
@@ -42,8 +44,8 @@ public class Drivetrain extends SwitchedStateMachine {
     //attached to the state machine fiber
 
     private Telemetry.Item stateTelemetry;
+    private Telemetry.Line endBreakLine;
     Mode idle;
-    Mode fieldCentric;
     Mode robotCentric;
     public Drivetrain(Context ctx){
         this(ctx, new FusionMecanumDrivetrain(ctx.hardwareMap(), Constants.driveConfig));
@@ -54,25 +56,14 @@ public class Drivetrain extends SwitchedStateMachine {
         innerDrivetrain = drivetrain;
         follower = Constants.createFollower(drivetrain);
         stateTelemetry = ctx.telemetry().addData("Drivetrain/State", "unknown");//can't use normal telemetry
+        endBreakLine = ctx.telemetry().addLine("-----------------------");
         //enter idle mode when start
         idle = entranceMode(from -> {
             follower.idle();
             stateTelemetry.setValue("idle");
         });
 
-        fieldCentric = mode(self -> {
-            DrivePowers powers = drivePowers.poll();
-            MotionState motionState = motionStates.query();//query does not remove most recent motion state
-            if(powers != null && motionState != null){
-                DrivePowers fieldCentricPowers = ManualDrive.fieldCentric(
-                        powers,
-                        motionState.pose().heading()
-                );
-                follower.manual(fieldCentricPowers);//tell the follower to drive w/ field centric powers
-            }
-            stateTelemetry.setValue("Field Centric");
-            return self;
-        });
+
 
         robotCentric = mode(self -> {
             DrivePowers powers = drivePowers.poll();
@@ -85,6 +76,26 @@ public class Drivetrain extends SwitchedStateMachine {
 
     }
 
+    private Mode fieldCentricMode(Alliance alliance){
+        return mode(self -> {
+            double offsetHeading =
+                    alliance == Alliance.BLUE
+                            ? Math.PI
+                            : 0.0;
+            DrivePowers powers = drivePowers.poll();
+            MotionState motionState = motionStates.query();//query does not remove most recent motion state
+            if(powers != null && motionState != null){
+                DrivePowers fieldCentricPowers = ManualDrive.fieldCentric(
+                        powers,
+                        motionState.pose().heading(),
+                        offsetHeading //handle the Blue/red side alliance rotations
+                );
+                follower.manual(fieldCentricPowers);//tell the follower to drive w/ field centric powers
+            }
+            stateTelemetry.setValue("Field Centric");
+            return self;
+        });
+    }
     public FusionMecanumDrivetrain getInnerDrivetrain() {
         return innerDrivetrain;
     }
@@ -236,8 +247,8 @@ public class Drivetrain extends SwitchedStateMachine {
         innerDrivetrain.addHandler(handler);
     }
 
-    public void fieldCentric() {
-        switchTo(fieldCentric);
+    public void fieldCentric(Alliance alliance) {
+        switchTo(fieldCentricMode(alliance));
     }
 
     public void idle() {

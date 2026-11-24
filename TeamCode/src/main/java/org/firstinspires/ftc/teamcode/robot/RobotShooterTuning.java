@@ -1,17 +1,13 @@
 package org.firstinspires.ftc.teamcode.robot;
 
-import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.expression;
-
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
-import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.qualcomm.hardware.lynx.LynxModule;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.constants.Constants;
-import org.firstinspires.ftc.teamcode.game.ALLIANCE;
+import org.firstinspires.ftc.teamcode.game.Alliance;
 import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
-import org.firstinspires.ftc.teamcode.helper.HiveSideHelper;
+import org.firstinspires.ftc.teamcode.sensor.HiveSideHelper;
 import org.firstinspires.ftc.teamcode.sensor.TurretEncoder;
 import org.firstinspires.ftc.teamcode.sensor.VoltageMonitor;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
@@ -20,14 +16,11 @@ import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 import org.firstinspires.ftc.teamcode.subsystems.Transfer;
 import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
 import org.firstinspires.ftc.teamcode.subsystems.Turret;
-import org.firstinspires.ftc.teamcode.util.Angle;
 
 import java.util.List;
 
 import dev.frozenmilk.dairy.mercurial.ftc.Context;
-import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
 import dev.frozenmilk.dairy.mercurial.processes.EventManager;
-import dev.frozenmilk.dairy.mercurial.processes.Fiber;
 
 //this robot class is for tuning the shooter in TeleOp
 //shooter P, kS, kV constants, shooter LUT, SOTM
@@ -55,10 +48,10 @@ public class RobotShooterTuning {
     public static double TURRET_TEST_POSITION = 0.5;
     public static boolean useBulkReading = false;
     public static double targetHoodPos = 0.6;
-    ALLIANCE alliance;
+    Alliance alliance;
     List<LynxModule> allHubs;
     public boolean TURRET_SYNCED = false;
-    public RobotShooterTuning(Context ctx, ALLIANCE alliance, HiveTargetSide startSide){
+    public RobotShooterTuning(Context ctx, Alliance alliance, HiveTargetSide startSide){
 
         if(useBulkReading){
             allHubs = ctx.hardwareMap().getAll(LynxModule.class);

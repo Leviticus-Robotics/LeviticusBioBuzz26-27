@@ -19,9 +19,11 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 public class MotorEx extends Motor {
     public static double REFERENCE_VOLTAGE = 12.5;
     public DcMotorEx motorEx;
-    private double cachingTolerance = 0;
+    private double cachingTolerance = 0.01;
 
     public double recentOutput;
+    private static final long CACHE_DURATION_NANOS = 24_000_000L;
+    private long nextNanos = System.nanoTime();
     /**
      * Constructs the instance motor for the wrapper
      *
@@ -45,6 +47,7 @@ public class MotorEx extends Motor {
         motorEx = (DcMotorEx) super.motor;
     }
 
+
     /**
      * Constructs an instance motor for the wrapper
      *
@@ -60,14 +63,18 @@ public class MotorEx extends Motor {
 
     //MODIFIED set function correctly
     public void set(double output, double currVoltage) {
-        if (runmode == RunMode.VelocityControl) {
-            recentOutput = (veloController.calculate(getCorrectedVelocity(), output) + feedforward.calculate(output, getAcceleration())) * (REFERENCE_VOLTAGE) / (currVoltage);
-            setPower(recentOutput);
-        } else if (runmode == RunMode.PositionControl) {
-            double error = positionController.calculate(encoder.getPosition());
-            setPower(output * error);
-        } else {
-            setPower(output);
+        long now = System.nanoTime();
+        if (now >= nextNanos) {
+            if (runmode == RunMode.VelocityControl) {
+                recentOutput = (veloController.calculate(getCorrectedVelocity(), output) + feedforward.calculate(output, getAcceleration())) * (REFERENCE_VOLTAGE) / (currVoltage);
+                setPower(recentOutput);
+            } else if (runmode == RunMode.PositionControl) {
+                double error = positionController.calculate(encoder.getPosition());
+                setPower(output * error);
+            } else {
+                setPower(output);
+            }
+            nextNanos = System.nanoTime() + CACHE_DURATION_NANOS;
         }
     }
     public void setPIDFController(PIDFController controller) {
@@ -89,7 +96,7 @@ public class MotorEx extends Motor {
      */
     @Override
     public double getVelocity() {
-        return getVelocity();
+        return motorEx.getVelocity();
     }  //return getVelocity();
 
     /**
@@ -124,10 +131,11 @@ public class MotorEx extends Motor {
      * @param power power to be assigned to the motor if difference is greater than caching tolerance or if power is exactly 0
      */
     public void setPower(double power) {
-        if ((Math.abs(power - motorEx.getPower()) > cachingTolerance) || (power == 0 && motorEx.getPower() != 0)) {
-            lastPower = power;
-            motorEx.setPower(power);
-            recentOutput = power;
+        double powerWrapped = Math.max(Math.min(power, 1), 0);
+        if ((Math.abs(powerWrapped - motorEx.getPower()) > cachingTolerance) || (powerWrapped == 0 && motorEx.getPower() != 0)) {
+            lastPower = powerWrapped;
+            motorEx.setPower(powerWrapped);
+            recentOutput = powerWrapped;
         }
     }
 

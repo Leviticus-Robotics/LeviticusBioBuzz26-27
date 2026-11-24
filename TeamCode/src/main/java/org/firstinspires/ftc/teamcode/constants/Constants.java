@@ -17,6 +17,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.teamcode.localization.mercurial.MercurialLocalizer;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagSingleDetection;
 import org.firstinspires.ftc.teamcode.fusion.MatrixOps;
@@ -28,7 +29,6 @@ import org.firstinspires.ftc.teamcode.localization.pedro.PredictiveLocalizer;
 import org.firstinspires.ftc.teamcode.localization.apriltag.AprilTagFrameProcessor;
 
 import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
-import dev.frozenmilk.dairy.mercurial.pedro.MercurialLocalizer;
 
 @Config
 public class Constants {
