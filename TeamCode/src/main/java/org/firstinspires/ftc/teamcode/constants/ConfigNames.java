@@ -34,5 +34,9 @@ public class ConfigNames {
     public static String transferGate = "tG";
 
     public static String hoodServo = "hoodServo";
+    public static String testServo = "hi";
+    public static String lightLeft = "lL";
+    public static String lightRight = "lR";
+
 
 }

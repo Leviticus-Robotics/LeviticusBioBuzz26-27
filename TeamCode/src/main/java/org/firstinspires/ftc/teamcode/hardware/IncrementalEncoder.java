@@ -54,18 +54,12 @@ public class IncrementalEncoder {
         return getPosition() / cpr;
     }
 
-    /**
-     * @return the raw velocity of the motor reported by the encoder
-     */
-    public double getRawVelocity() {
-        double velo = ((DcMotorEx) encoder).getVelocity();
-        return velo;
-    }
 
     public int angleToTicks(double angle) {
         return (int) (angle * cpr / MathUtils.returnMaxForAngleUnit(angleUnit));
     }
 
+    //no normalizing happening here
     public double getAngleUnnormalized() {
         return getRevolutions() * MathUtils.returnMaxForAngleUnit(angleUnit);
     }
@@ -74,14 +68,6 @@ public class IncrementalEncoder {
         int rawPosition = encoder.getCurrentPosition();
         offset = getDirectionMultiplier() * rawPosition - angleToTicks(angle);
         return this;
-    }
-
-    public double getAngle() {
-        return MathUtils.normalizeAngle(
-                getAngleUnnormalized(),
-                true,
-                angleUnit
-        );
     }
 
 

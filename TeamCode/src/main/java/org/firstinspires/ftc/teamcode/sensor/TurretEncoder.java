@@ -5,12 +5,14 @@ import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.exec;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.expression;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.constants.ConfigNames;
+import org.firstinspires.ftc.teamcode.hardware.AbsoluteAnalogEncoder;
 import org.firstinspires.ftc.teamcode.hardware.IncrementalEncoder;
 import org.firstinspires.ftc.teamcode.helper.AngleHelper;
 import org.firstinspires.ftc.teamcode.util.Angle;
@@ -27,45 +29,42 @@ import dev.frozenmilk.util.collections.Cons;
  * Supports both 4 pin quadrature (incremental) and 3 pin analog (absolute)
  * Use absolute to get the starting position, set incremental to that position
  */
+@Config
 public class TurretEncoder extends EventManager<AngleHelper> {
-    AnalogInput absoluteEncoder;
+    AbsoluteAnalogEncoder absoluteEncoder;
     IncrementalEncoder incrementalEncoder;
-    Telemetry.Item telemetry;
     private Angle startPosition;//radians
     public Angle recentIncrementalPosition;//use this, accounting for wrap around
     public Angle recentAbsolutePosition;
 
     private final double TICKS_PER_REV = 4096;
-    private final double GR_ENCODER_TO_SERVO = (40.0 / 115.0);
+    private final double GR_ENCODER_TO_TURRET = (40.0 / 115.0);
+    public static double range = 3.23;
+    public static double analogOffset = 0;
 
     //reset encoder resets the incrementla encoder
+    Telemetry.Item voltageOffsetAnalog;
+    Telemetry.Item voltageRawAnalog;
     public TurretEncoder(Context ctx){
-        //when the turret encoder is started read the absolute position
-        absoluteEncoder = ctx.hardwareMap().get(AnalogInput.class, ConfigNames.turretAnalogEncoder);
+        //both using radians
+        absoluteEncoder = new AbsoluteAnalogEncoder(ctx.hardwareMap(), ConfigNames.turretAnalogEncoder, range);
         incrementalEncoder = new IncrementalEncoder(ctx.hardwareMap(), ConfigNames.turretQuadratureEncoder, TICKS_PER_REV, AngleUnit.RADIANS);
-        telemetry = ctx.telemetry().addData("Turret Encoder Position: ", "unknown");
-        //might not always want to reset encoder at the start in case wraparound exists
-        startPosition = updateAbsolute(absoluteEncoder);
+        voltageOffsetAnalog = ctx.telemetry().addData("Voltage analog", "unknown");
+        voltageRawAnalog = ctx.telemetry().addData("Voltage Raw analog", "unknown");
+        incrementalEncoder.setReversed(true);
     }
     //only need to call this in autonomous, not teleop b/c incremental value saves over
 
 
-    public void resetEncoderAsync(){
+    public void zeroIncremental(){
         incrementalEncoder.resetEncoder();
     }
-    public Continuation.Builder<?> resetEncoderSync() {
-        return exec(this::resetEncoderAsync);
-    }
-
 
     //gets the absolute encoder val and set the incremental encoder to that position
-    public void resetFromAbsoluteAsync(){
-        Angle newAbsPosition = updateAbsolute(absoluteEncoder);
+    public void resetFromAbsolute(){
+        Angle newAbsPosition = absoluteEncoder.getCurrentPosition();
         setEncoderAngle(newAbsPosition.getValue());
         //reset incremental encoder offset to new absolute position
-    }
-    public Continuation.Builder<?> resetFromAbsoluteSync(){
-        return exec(this::resetFromAbsoluteAsync);
     }
 
     //reset encoder angle to zero(changes offset)
@@ -84,30 +83,30 @@ public class TurretEncoder extends EventManager<AngleHelper> {
     protected void eventSource() {
         long currTime = System.currentTimeMillis();
         //only update every X seconds for semi-expensive io reads
+        //not notifying every loop time now
         if(!hasReadSensors || currTime - lastSensorReadTime >= SENSOR_UPDATE_INTERVAL_MS){
             lastSensorReadTime = currTime;
             hasReadSensors = true;
             recentIncrementalPosition = updateIncremental(incrementalEncoder);
             recentAbsolutePosition = updateAbsolute(absoluteEncoder);
-
+            notify(new AngleHelper(recentIncrementalPosition, AngleHelper.AngleType.Incremental));
+            notify(new AngleHelper(recentAbsolutePosition, AngleHelper.AngleType.Absolute));
         }
-        notify(new AngleHelper(recentIncrementalPosition, AngleHelper.AngleType.Incremental));
-        notify(new AngleHelper(recentAbsolutePosition, AngleHelper.AngleType.Absolute));
     }
 
+    //scales incremental so that the angle returned is from turret perspective, not encoder
     private Angle updateIncremental(IncrementalEncoder encoder){
         double angle = encoder.getAngleUnnormalized();//update incremental sensor value
-        return Angle.fromRadians(angle * GR_ENCODER_TO_SERVO);
+        return Angle.fromRadians(angle * GR_ENCODER_TO_TURRET);
     }
 
-    private Angle updateAbsolute(AnalogInput input){
-        return Angle.fromRadians(input.getVoltage() / input.getMaxVoltage() * 2 * Math.PI * GR_ENCODER_TO_SERVO);//scale voltage to radians
+    //scales absoltue so that angle returned is from turret perspective, not encoder
+    private Angle updateAbsolute(AbsoluteAnalogEncoder absoluteEncoder){
+        voltageOffsetAnalog.setValue(absoluteEncoder.getOffsetedVoltage());
+        voltageRawAnalog.setValue(absoluteEncoder.getRawVoltage());
+        return Angle.fromRadians(absoluteEncoder.getCurrentPosition().getValue() * GR_ENCODER_TO_TURRET);//scale voltage to radians
     }
 
-
-    public Angle getStartPosition(){
-        return startPosition;
-    }
 
     public Angle getRecentIncrementalPosition(){
         return recentIncrementalPosition;

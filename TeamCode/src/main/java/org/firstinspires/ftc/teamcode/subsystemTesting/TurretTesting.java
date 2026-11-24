@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystemTesting;
 
+import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.exec;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.expression;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.loop;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.noop;
@@ -11,6 +12,7 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.pedropathing.math.Pose;
+import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -21,6 +23,9 @@ import org.firstinspires.ftc.teamcode.sensor.TurretEncoder;
 import org.firstinspires.ftc.teamcode.subsystems.FlowerWedge;
 import org.firstinspires.ftc.teamcode.subsystems.Turret;
 import org.firstinspires.ftc.teamcode.util.Angle;
+
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
@@ -36,8 +41,14 @@ public class TurretTesting {
             .withName("Turret Testing")
             .withGroup("Subsystem Testing");
 
-    public static Angle testAngle = Angle.fromDegrees(180);
+    public static Angle testAngle1 = Angle.fromDegrees(-135);
+    public static Angle testAngle2 = Angle.fromDegrees(-90);
+    public static Angle testAngle3 = Angle.fromDegrees(135);
+    public static Angle testAngle4 = Angle.fromDegrees(90);
+    public static Angle testAngle5 = Angle.fromDegrees(180);
     public static double testPosition = 0.5;
+    public static boolean useBulkReading = false;
+
     //plug bounds in flower wedge state machine
     public static MercurialFTC.RegisterableProgram teleOp() {
         return MercurialFTC.teleop(ctx -> {
@@ -45,47 +56,75 @@ public class TurretTesting {
             TurretEncoder turretEncoder = new TurretEncoder(ctx);
             Telemetry.Item absoluteRawEncoderPos = ctx.telemetry().addData("Absolute Raw: ", "unknown");
             Telemetry.Item incrmentalRawEncoderPos = ctx.telemetry().addData("Incremental Raw: ", "unknown");
+            Telemetry.Item absoluteCorrectEncoder = ctx.telemetry().addData("Absolute Correct: ", "unknown");
+            Telemetry.Item incrementalCorrectEncoder = ctx.telemetry().addData("Incremental Correct: ", "unknown");
+            Telemetry.Item servoSetPosition = ctx.telemetry().addData("Servo Positions: ", "unknown");
 
-//            expression((scope, self) -> {
-//                scope.run(waitUntil(ctx::inInit));
-//                scope.run(waitFor.bind(seconds(2)));//waits for 2 seconds
-//                scope.run(turretEncoder.resetEncoderSync());//do this to avoid hitting maximum values
-//                scope.run(turretEncoder.resetFromAbsoluteSync());
-//                //resets incremental encoder on turret, reads from absolute
-//                return noop;
-//            }).spawnable().spawnLink();
+            List<LynxModule> allHubs = ctx.hardwareMap().getAll(LynxModule.class);
+            if(useBulkReading){
+                for (LynxModule hub : allHubs) {
+                    hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
+                }
+            }
 
             turretEncoder.addHandler(event -> {
                 if(event.getAngleType() == AngleHelper.AngleType.Absolute){
                     turret.updateAbsoluteAngle(event.getAngle());
                     absoluteRawEncoderPos.setValue(event.getAngle().toDegrees());
                 }
-                if(event.getAngleType() == AngleHelper.AngleType.Incremental){
+                else{
                     turret.updateIncrementalAngle(event.getAngle());
                     incrmentalRawEncoderPos.setValue(event.getAngle().toDegrees());
                 }
 
                 return EventManager.EventHandled.ok();
             });
+
+
 //            ctx.telemetry().addLine("Left Bumper to set Intake Test Angle");
+
 
 
             EventManager.Handler<GamepadD.Delta> turretHandler =
                     GamepadD.gamepad1Handler(event -> {
                         if(event.leftBumperWasPressed()){
-                            turret.setRawPosition(0);
-                        } else if(event.rightBumperWasPressed()){
-                            turret.setRawPosition(1);
-                        } else if(event.rightTriggerOver(0.3)){
-                            turret.setRawPosition(testPosition);
+                            turret.setRawPosition(0, true);
+                        }
+                        if(event.rightBumperWasPressed()){
+                            turret.setRawPosition(1, true);
+                        }
+                        if(event.rightTriggerOver(0.3)){
+                            turret.setRawPosition(testPosition, true);
                         }
 
                         if(event.dpadUpWasPressed()){
-                            testAngle.toRadians();
-                            turret.setRawAngle(testAngle);
-                        } else if(event.dpadDownWasPressed()){
-                            testAngle.toRadians();
-                            turret.setOptimizedAngle(testAngle);
+                            turret.setRawAngle(Angle.fromRadians(testAngle1.toRadians()), false);
+                        }
+                        else if(event.dpadDownWasPressed()){
+                            turret.setRawAngle(Angle.fromRadians(testAngle2.toRadians()), false);
+                        }
+                        else if(event.dpadLeftWasPressed()){
+                            turret.setRawAngle(Angle.fromRadians(testAngle3.toRadians()), false);
+                        }
+                        else if(event.dpadRightWasPressed()){
+                            turret.setRawAngle(Angle.fromRadians(testAngle4.toRadians()), false);
+                        }
+                        else if(event.triangleWasPressed()){
+                            turret.setRawAngle(Angle.fromRadians(testAngle5.toRadians()), false);
+                        }
+                        else if(event.crossWasPressed()){
+                            turret.setRawPosition(Turret.SERVO_CENTER_POSITION, false);
+                        }
+//                        else if(event.dpadDownWasPressed()){
+//                            testAngle.toRadians();
+//                            turret.setOptimizedAngle(testAngle, true);
+//                        }
+
+                        if(event.squareWasPressed()){
+                            turretEncoder.zeroIncremental();
+                        }
+                        if(event.circleWasPressed()){
+                            turretEncoder.resetFromAbsolute();
                         }
 
                         return EventManager.EventHandled.ok();
@@ -93,6 +132,21 @@ public class TurretTesting {
             );
 
             ctx.waitForStart();
+
+            loop(
+                    exec(() -> {
+                        if (useBulkReading) {
+                            for (LynxModule hub : allHubs) {
+                                hub.clearBulkCache();
+                            }
+                        }
+                        absoluteCorrectEncoder.setValue(turret.currentAbsolutePosition().toDegrees());
+                        incrementalCorrectEncoder.setValue(turret.currentIncrementalPosition().toDegrees());
+                        servoSetPosition.setValue(turret.servoLeft.getPosition());
+
+                    })
+            ).spawnable().spawnLink();
+
             ctx.gamepadD().addHandler(turretHandler);
             ctx.dropToScheduler();
             return null;

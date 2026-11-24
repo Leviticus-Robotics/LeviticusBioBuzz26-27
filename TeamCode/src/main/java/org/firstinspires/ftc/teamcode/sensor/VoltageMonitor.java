@@ -10,18 +10,26 @@ import dev.frozenmilk.dairy.mercurial.processes.EventManager;
  */
 public class VoltageMonitor extends EventManager<Double> {
     private VoltageSensor sensor;
+    boolean hasReadSensors;
+    double lastSensorReadTime;
+    public double SENSOR_UPDATE_INTERVAL_MS = 20;
+
     public VoltageMonitor(Context ctx){
         sensor = ctx.hardwareMap().voltageSensor.iterator().next();
     }
 
     @Override
     protected void eventSource(){
-        if(sensor != null){
+        long currTime = System.currentTimeMillis();
+        if(!hasReadSensors || currTime - lastSensorReadTime >= SENSOR_UPDATE_INTERVAL_MS) {
+            lastSensorReadTime = currTime;
+            hasReadSensors = true;
             double currentVoltage = sensor.getVoltage();
-            if(currentVoltage > 0){
+            if (currentVoltage > 0) {
                 notify(currentVoltage);
             }
         }
+
     }
 
 }

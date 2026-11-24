@@ -89,8 +89,8 @@ public class MotorEx extends Motor {
      */
     @Override
     public double getVelocity() {
-        return motorEx.getVelocity();
-    }
+        return getVelocity();
+    }  //return getVelocity();
 
     /**
      * @return the acceleration of the motor in ticks per second squared
@@ -127,6 +127,7 @@ public class MotorEx extends Motor {
         if ((Math.abs(power - motorEx.getPower()) > cachingTolerance) || (power == 0 && motorEx.getPower() != 0)) {
             lastPower = power;
             motorEx.setPower(power);
+            recentOutput = power;
         }
     }
 
