@@ -27,7 +27,7 @@ public class Transfer extends MotorSubsystem {
     boolean breaker1Detection = false;
     boolean breaker2Detection = false;
 
-    public static double POST_DETECTION_WAIT_MS = 0;//wait X ms in runTillTransferDetect() modes
+    public static double POST_DETECTION_WAIT_MS = 100;//wait X ms in runTillTransferDetect() modes
     private final ElapsedTime detectionTimer = new ElapsedTime();
     boolean detectionDelayStated = false;
     private Telemetry.Line startLine;

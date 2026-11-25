@@ -17,7 +17,6 @@ public class HiveSideHelper extends EventManager<HiveTargetSide> {
 
     @Override
     protected void eventSource(){
-
         if(currentSideChannel != null){
             HiveTargetSide currentHiveTargetSide = currentSideChannel.query();
             if(currentHiveTargetSide != lastHiveTargetSide && currentHiveTargetSide != null) {

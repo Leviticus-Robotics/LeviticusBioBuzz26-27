@@ -9,6 +9,7 @@ import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.seconds
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.sequence;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitFor;
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitUntil;
+import static org.firstinspires.ftc.teamcode.constants.Constants.*;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
@@ -18,6 +19,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.constants.Constants;
 import org.firstinspires.ftc.teamcode.game.Alliance;
 import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
+import org.firstinspires.ftc.teamcode.helper.AngleHelper;
 import org.firstinspires.ftc.teamcode.helper.BallCounter;
 import org.firstinspires.ftc.teamcode.localization.mercurial.MercurialLocalizer;
 import org.firstinspires.ftc.teamcode.sensor.HiveSideHelper;
@@ -33,6 +35,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 import org.firstinspires.ftc.teamcode.subsystems.Transfer;
 import org.firstinspires.ftc.teamcode.subsystems.TransferGate;
 import org.firstinspires.ftc.teamcode.subsystems.Turret;
+import org.firstinspires.ftc.teamcode.util.Angle;
 
 import dev.frozenmilk.dairy.mercurial.ftc.GamepadD;
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
@@ -41,11 +44,18 @@ import dev.frozenmilk.dairy.mercurial.processes.EventManager;
 
 @Config
 public class TeleOpManual {
-    public static final MercurialFTC.RegisterableProgram test2 = teleOp(new Pose(8, 8, Math.toRadians(0)), Alliance.RED, HiveTargetSide.Right)
-            .withName("TeleOp Manual")
+    public static final MercurialFTC.RegisterableProgram red1 = teleOp(new Pose(CENTER_TO_BACK_INCH, CENTER_TO_SIDE_INCH, Math.toRadians(0)), Alliance.RED, HiveTargetSide.Right)
+            .withName("TeleOp Red Manual")
+            .withGroup("Competition");
+    public static final MercurialFTC.RegisterableProgram blue1 = teleOp(new Pose(GAME_FIELD_LENGTH_INCH - CENTER_TO_BACK_INCH, CENTER_TO_SIDE_INCH, Math.PI), Alliance.BLUE, HiveTargetSide.Left)
+            .withName("TeleOp Blue Manual")
             .withGroup("Competition");
     public static double fixedIntakePower = 1;
-    public static double fixedTransferPower = 1;
+    public static double fixedTransferPower = 0.75;
+
+    public static double shootingTolerance = 50;//ticks per second
+    public static double turretToleranceRad = Math.toRadians(5);
+    public static double turningSensitivityMultiplier = 0.6;
 
     public static MercurialFTC.RegisterableProgram teleOp(Pose startPose, Alliance alliance, HiveTargetSide startSide) {
 
@@ -61,6 +71,10 @@ public class TeleOpManual {
 
                     Telemetry.Line instructions5 = ctx.telemetry().addLine(
                             "Left trigger toggle: Flower");
+                    Telemetry.Item readyToStart = ctx.telemetry().addData(
+                            "Setup", "not yet"
+                    );
+
                     ctx.telemetry().addLine("-------------------------------");
 
                     Drivetrain drivetrain = new Drivetrain(ctx);
@@ -119,6 +133,18 @@ public class TeleOpManual {
                     );
 
                     ctx.telemetry().addLine("-------------------------------");
+                    Telemetry.Item withinShootingToleranceTelemetry = ctx.telemetry().addData(
+                            "Shooting/tolerance: ", "unknown"
+                    );
+                    Telemetry.Item withinTurretToleranceTelemetry = ctx.telemetry().addData(
+                            "Turret/tolerance: ", "unknown"
+                    );
+                    Telemetry.Item validShootPositionTelemetry = ctx.telemetry().addData(
+                            "Valid shoot Pos: ", "unknown"
+                    );
+
+
+                    ctx.telemetry().addLine("-------------------------------");
                     Telemetry.Item pollDurationTelemetry = ctx.telemetry().addData(
                             "Loop Times (sec)", ctx.scheduler().getPollDurationSeconds()
                     );
@@ -142,6 +168,17 @@ public class TeleOpManual {
                         return EventManager.EventHandled.ok();
                     });
 
+                    //send turret angles to turret
+
+                    turretEncoder.addHandler(event -> {
+                        if(event.getAngleType() == AngleHelper.AngleType.Absolute){
+                            turret.updateAbsoluteAngle(event.getAngle());
+                        }
+                        else if(event.getAngleType() == AngleHelper.AngleType.Incremental){
+                            turret.updateIncrementalAngle(event.getAngle());
+                        }
+                        return EventManager.EventHandled.ok();
+                    });
 
                     //send  pose to shooter state machine
                     voltageMonitor.addHandler(EventManager.forwardTo(
@@ -180,13 +217,20 @@ public class TeleOpManual {
 
                     hiveSideHelper.addHandler(event -> {
                         hiveTargetSideTelemetry.setValue(event);
-//                        shooter.lutStatic(alliance, hiveSideHelper.getSide());
+                        if(ctx.inLoop()) {
+                            shooter.lutStatic(alliance, hiveSideHelper.getSide());
+                        }
                         return EventManager.EventHandled.ok();
                     });
+                    class AssitedShooting{
+                        boolean waiting = false;
+                        boolean feeding = false;
+                    }
 
                     class DriveSettings {
                         boolean fieldCentric = true;
                     }
+                    AssitedShooting assistedShootingSettings = new AssitedShooting();
 
                     DriveSettings driveSettings = new DriveSettings();
                     EventManager.Handler<GamepadD.Delta> drivetrainHandler =
@@ -199,28 +243,47 @@ public class TeleOpManual {
                                 drivetrain.sendDrivePowers(
                                         -event.leftStickY(),
                                         -event.leftStickX(),
-                                        -event.rightStickX());
+                                        -event.rightStickX()* turningSensitivityMultiplier);
                                 return EventManager.EventHandled.ok();
                             });
 
                     EventManager.Handler<GamepadD.Delta> intakeTransferHandler =
                             GamepadD.gamepad1Handler(event -> {
-                                    if(event.leftBumperWasPressed())
-                                    {
+                                    if(event.leftBumperWasPressed())//shoots immediantly
+                                    {   //reset assisted
+                                        assistedShootingSettings.waiting = false;
+                                        assistedShootingSettings.feeding = false;
                                         transferGate.setOpen();
                                         intake.fixedPower(1);
-                                        transfer.fixedPower(1);
+                                        transfer.fixedPower(fixedTransferPower);
                                     }
-                                    else if(event.rightBumperWasPressed()) {
-                                        intake.fixedPower(fixedIntakePower);
+                                    else if(event.rightBumperWasPressed()) {//intake
+                                        assistedShootingSettings.waiting = false;
+                                        assistedShootingSettings.feeding = false;
+                                        intake.runPowerTillDetection(fixedIntakePower);
                                         transfer.runPowerTillDetection(fixedTransferPower);
                                         transferGate.setClosed();
-                                    } else if(event.rightTriggerPassedOver(0.2)){
+                                    } else if(event.rightTriggerPassedOver(0.2)){//reverse intake
+                                        assistedShootingSettings.waiting = false;
+                                        assistedShootingSettings.feeding = false;
                                         intake.fixedPower(-1);
                                         transfer.fixedPower(-1);
+                                        transferGate.setOpen();
+                                    } else if(event.dpadLeftWasPressed()){//assisted shooting: wait for criteria bfore shooting
+                                        assistedShootingSettings.waiting = true;
+                                        assistedShootingSettings.feeding = false;
+                                        shooter.setUseDefaultVelocity(false);
                                         transferGate.setClosed();
+                                        intake.fixedPower(0);
+                                        transfer.fixedPower(0);
                                     }
-                                    if(event.leftBumperWasReleased() || event.rightBumperWasReleased() || event.rightTriggerPassedUnder(0.2)){
+                                    if(event.leftBumperWasReleased()
+                                            || event.rightBumperWasReleased()
+                                            || event.rightTriggerPassedUnder(0.2)
+                                            || event.dpadLeftWasReleased()
+                                    ){
+                                        assistedShootingSettings.waiting = false;
+                                        assistedShootingSettings.feeding = false;
                                         intake.fixedPower(0);
                                         transfer.fixedPower(0);
                                         transferGate.setClosed();
@@ -239,77 +302,148 @@ public class TeleOpManual {
                             return EventManager.EventHandled.ok();
                         }
                     );
+
+                    EventManager.Handler<GamepadD.Delta> resetPoseHandler =
+                            GamepadD.gamepad1Handler(event -> {
+                                if(event.squareWasPressed()){
+                                    localizer.setPose(alliance == Alliance.BLUE ? BLUE_ALLIANCE_FAR_LEFT : RED_ALLIANCE_FAR_LEFT);
+                                } else if(event.triangleWasPressed()){
+                                    localizer.setPose(alliance == Alliance.BLUE ? BLUE_ALLIANCE_FAR_RIGHT : RED_ALLIANCE_FAR_RIGHT);
+                                } else if(event.crossWasPressed()){
+                                    localizer.setPose(alliance == Alliance.BLUE ? BLUE_ALLIANCE_CLOSE_LEFT : RED_ALLIANCE_CLOSE_LEFT);
+                                } else if(event.circleWasPressed()){
+                                    localizer.setPose(alliance == Alliance.BLUE ? BLUE_ALLIANCE_CLOSE_RIGHT : RED_ALLIANCE_CLOSE_RIGHT);
+                                }
+                                return EventManager.EventHandled.ok();
+                            }
+                    );
+                    //Gampead 2 bindings below
                     EventManager.Handler<GamepadD.Delta> shootingSideHandler =
                             GamepadD.gamepad2Handler(event -> {
-                                        if(event.leftBumperWasPressed()){
-                                            hiveSideHelper.setSide(HiveTargetSide.Left);
-                                        } else if(event.rightBumperWasPressed()){
-                                            hiveSideHelper.setSide(HiveTargetSide.Right);
-                                        }
-                                        return EventManager.EventHandled.ok();
-                                    }
-                            );
+                                if(event.leftBumperWasPressed()){
+                                    hiveSideHelper.setSide(HiveTargetSide.Left);
+                                } else if(event.rightBumperWasPressed()){
+                                    hiveSideHelper.setSide(HiveTargetSide.Right);
+                                }
+                                return EventManager.EventHandled.ok();
+                            }
+                    );
+
+                    EventManager.Handler<GamepadD.Delta> turretTrimhandler =
+                            GamepadD.gamepad2Handler(event -> {
+                                if(event.dpadRightWasPressed()){
+                                    turret.adjustAimTrimDeg(Turret.AIM_TRIM_STEP_DEG);
+                                }
+                                if(event.dpadLeftWasPressed()){
+                                    turret.adjustAimTrimDeg(-Turret.AIM_TRIM_STEP_DEG);
+                                }
+                                if(event.dpadDownWasPressed()){
+                                    turret.resetAimTrim();
+                                }
+                                return EventManager.EventHandled.ok();
+                            }
+                    );
 
 
-            //reset turret start fiber
-                    expression((scope, self) -> {
-                        scope.run(waitUntil(ctx::inInit));
-                        scope.run(waitFor.bind(seconds(2)));//waits for 2 seconds
-                        exec(() -> turretEncoder.zeroIncremental());//do this to avoid hitting maximum values
-                        exec(() -> turretEncoder.resetFromAbsolute());
-                        //resets incremental encoder on turret, reads from absolute
+                    //reset turret start fiber, init turret mechnaism
+                    expression((scope, _self) -> {
+                        scope.runExec(() -> turret.setServos(Turret.SERVO_CENTER_POSITION, false));
+                        scope.run(waitFor.bind(seconds(2)));
+                        scope.runExec(() -> turretEncoder.zeroIncremental());
+                        scope.runExec(() -> turretEncoder.resetFromAbsolute());
+                        scope.runExec(() -> shooter.setUseDefaultVelocity(false));
+                        scope.run(waitFor.bind(seconds(3)));
+                        scope.run(turret.setTrackingModeSync(false));
+                        scope.runExec(() -> readyToStart.setValue("Ready"));
+                        scope.runExec(() -> drivetrain.fieldCentric(alliance));
                         return noop;
                     }).spawnable().spawnLink();
 
                     ctx.waitForStart();
+
+
                     //remove telemetry
+                    shooter.lutStatic(alliance, startSide);
 
                     ctx.telemetry().removeLine(instructions1);
                     ctx.telemetry().removeLine(instructions2);
                     ctx.telemetry().removeLine(instructions3);
                     ctx.telemetry().removeLine(instructions4);
                     ctx.telemetry().removeLine(instructions5);
+                    ctx.telemetry().removeItem(readyToStart);
 
 
-                    drivetrain.fieldCentric(alliance);
-                    shooter.setUseDefaultVelocity(false);
-                    shooter.lutStatic(alliance, startSide);
-                    turret.setTrackingMode(false);
+
+
 
 
                     ctx.gamepadD().addHandler(intakeTransferHandler);
                     ctx.gamepadD().addHandler(drivetrainHandler);
                     ctx.gamepadD().addHandler(flowerMechHandler);
+                    ctx.gamepadD().addHandler(resetPoseHandler);
                     ctx.gamepadD().addHandler(shootingSideHandler);
+                    ctx.gamepadD().addHandler(turretTrimhandler);
 
-                    //handles the shooter default velocity stuff
-                   loop(
-                            ifThen(
-                                    () -> ballCounter.totalBalls() > 1,
-                                exec(() -> shooter.setUseDefaultVelocity(false)),
+                    loop(
+                            sequence(
                                 ifThen(
-                                        () -> transferGate.openPosition,
-                                        exec(()-> shooter.setUseDefaultVelocity(false)),
-                                        exec(()-> shooter.setUseDefaultVelocity(true))
+                                        ()-> localizer.pose().y() >= 141.5 / 2.0 && alliance == Alliance.BLUE
+                                                || localizer.pose().y() < 141.5/2.0 && alliance == Alliance.RED,
+                                        exec(() -> hiveSideHelper.setSide(HiveTargetSide.Right)),
+                                        exec(()-> hiveSideHelper.setSide(HiveTargetSide.Left))
                                 )
                             )
                     ).spawnable().spawnLink();
 
+
+
+                   loop(
+                           //handles the shooter default velocity to turn off default if more than 1 ball, doing assisted shooting, or open gate
+                           sequence(
+                                   ifThen(
+                                           () -> assistedShootingSettings.waiting
+                                                   || ballCounter.totalBalls() > 1
+                                                   || transferGate.openPosition,
+                                           exec(()-> shooter.setUseDefaultVelocity(false)),
+                                           exec(()-> shooter.setUseDefaultVelocity(true))
+                                   ),
+                                   ifThen(
+                                            ()-> assistedShootingSettings.waiting
+                                                && !assistedShootingSettings.feeding
+                                                && shooter.isAtShootingTargetVelocity(shootingTolerance)
+                                                && turret.isAtAngle(turretToleranceRad)
+                                                && shooter.isValidShootPosition(hiveSideHelper.getSide()),
+                                            exec(()->{
+                                                assistedShootingSettings.feeding = true;
+                                               transferGate.setOpen();
+                                               intake.fixedPower(1);
+                                               transfer.fixedPower(1);
+                                            }
+                                   ),
+                                   waitFor.bind(seconds(0.02))
+                           )
+                   )).spawnable().spawnLink();
                     //update telemetry
                     loop(
                             sequence(
+                                    exec(()-> withinShootingToleranceTelemetry.setValue(shooter.isAtShootingTargetVelocity(shootingTolerance))),
+                                    exec(()-> withinTurretToleranceTelemetry.setValue(turret.isAtAngle(turretToleranceRad))),
+                                    exec(()-> validShootPositionTelemetry.setValue(shooter.isValidShootPosition(hiveSideHelper.getSide()))),
                                     exec(() -> distanceFromGoal.setValue(shooter.distanceFromGoal)),
                                     exec(()-> shooterVelocity.setValue(shooter.getVelocity())),
                                     exec(()-> shooterTargetVelocity.setValue(shooter.getShootingTargetVelocity())),
                                     exec(()-> pollDurationTelemetry.setValue(ctx.scheduler().getPollDurationSeconds())),
                                     exec(()-> averageFiberTimeTelemetry.setValue(ctx.scheduler().getAverageFiberDurationSeconds())),
                                     exec(() -> FtcDashboard.getInstance().getTelemetry().addData("shooter vel", shooter.getVelocity())),
+                                    exec(() -> FtcDashboard.getInstance().getTelemetry().addData("Atan aim angle(deg)", Shooter.angle1Rad)),
+                                    exec(() -> FtcDashboard.getInstance().getTelemetry().addData("DeltaY", Shooter.deltaY)),
+                                    exec(() -> FtcDashboard.getInstance().getTelemetry().addData("DeltaX", Shooter.deltaX)),
+//                                    exec(() -> FtcDashboard.getInstance().getTelemetry().addData("turret rel(deg)", turret.targetTurretAngle.toDegrees())),
                                     exec(() -> FtcDashboard.getInstance().getTelemetry().update()),
-                                    waitFor.bind(seconds(0.25))
+                                    waitFor.bind(seconds(0.10))
                             )
 
                     ).spawnable().spawnLink();
-
 
                     ctx.dropToScheduler();
                     return null;

@@ -22,7 +22,7 @@ public class MotorEx extends Motor {
     private double cachingTolerance = 0.01;
 
     public double recentOutput;
-    private static final long CACHE_DURATION_NANOS = 24_000_000L;
+    private static final long CACHE_DURATION_NANOS = 40_000_000L;
     private long nextNanos = System.nanoTime();
     /**
      * Constructs the instance motor for the wrapper
@@ -67,7 +67,9 @@ public class MotorEx extends Motor {
         if (now >= nextNanos) {
             if (runmode == RunMode.VelocityControl) {
                 recentOutput = (veloController.calculate(getCorrectedVelocity(), output) + feedforward.calculate(output, getAcceleration())) * (REFERENCE_VOLTAGE) / (currVoltage);
+                recentOutput = Math.max(Math.min(recentOutput, 1), 0);
                 setPower(recentOutput);
+
             } else if (runmode == RunMode.PositionControl) {
                 double error = positionController.calculate(encoder.getPosition());
                 setPower(output * error);
@@ -131,7 +133,7 @@ public class MotorEx extends Motor {
      * @param power power to be assigned to the motor if difference is greater than caching tolerance or if power is exactly 0
      */
     public void setPower(double power) {
-        double powerWrapped = Math.max(Math.min(power, 1), 0);
+        double powerWrapped = Math.max(Math.min(power, 1), -1);
         if ((Math.abs(powerWrapped - motorEx.getPower()) > cachingTolerance) || (powerWrapped == 0 && motorEx.getPower() != 0)) {
             lastPower = powerWrapped;
             motorEx.setPower(powerWrapped);

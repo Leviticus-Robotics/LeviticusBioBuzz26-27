@@ -94,7 +94,7 @@ public class Intake extends MotorSubsystem {
 
     @Override
     protected Mode fixedPowerMode(double power){//parametrized so it keeps holding the velocity
-        return entranceMode(self -> {
+        return mode(self -> {
             modeTelemtry.setValue("Fixed Power (" + power + ")");
             motor.setRunMode(MotorEx.RunMode.RawPower);
             // goes at half speed after two balls detect
@@ -107,7 +107,7 @@ public class Intake extends MotorSubsystem {
 //                    motor.set(power / 2); // goes at half speed after two balls detect
 //                    extraStateTelemetry.setValue("Half Power (transfer balls detected)");
 //                }
-//                return self;
+                return self;
         });
     }
 
@@ -167,11 +167,12 @@ public class Intake extends MotorSubsystem {
     }
 
     private boolean shouldTransferContinue(){
-        if(!detectionDelayStated && detect4Balls()){
-            detectionDelayStated = true;
-            detectionTimer.reset();
-        }//wait X seconds after first ball detection before turning off transfer motors
-        return !detectionDelayStated || detectionTimer.milliseconds() < POST_DETECTION_WAIT_MS;
+//        if(!detectionDelayStated && detect4Balls()){
+//            detectionDelayStated = true;
+//            detectionTimer.reset();
+//        }//wait X seconds after first ball detection before turning off transfer motors
+//        return !detectionDelayStated || detectionTimer.milliseconds() < POST_DETECTION_WAIT_MS;
+        return !detect4Balls();
     }
 
 

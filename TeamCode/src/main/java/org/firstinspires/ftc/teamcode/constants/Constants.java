@@ -32,6 +32,19 @@ import dev.frozenmilk.dairy.mercurial.pedro.MercurialFollower;
 
 @Config
 public class Constants {
+    public static double CENTER_TO_BACK_INCH = 153.175 / 25.4;
+    public static double CENTER_TO_SIDE_INCH = 178.325 / 25.4;
+    public static double CENTER_TO_FRONT_INCH = 299.0 / 25.4;
+    public static double GAME_FIELD_LENGTH_INCH = 141.5;
+    public static Pose RED_ALLIANCE_FAR_LEFT = new Pose(GAME_FIELD_LENGTH_INCH - CENTER_TO_FRONT_INCH, GAME_FIELD_LENGTH_INCH - CENTER_TO_SIDE_INCH, Math.toRadians(0));
+    public static Pose RED_ALLIANCE_FAR_RIGHT = new Pose(GAME_FIELD_LENGTH_INCH - CENTER_TO_FRONT_INCH, CENTER_TO_SIDE_INCH, Math.toRadians(0));
+    public static Pose RED_ALLIANCE_CLOSE_LEFT = new Pose(CENTER_TO_BACK_INCH, GAME_FIELD_LENGTH_INCH - CENTER_TO_SIDE_INCH, Math.toRadians(0));
+    public static Pose RED_ALLIANCE_CLOSE_RIGHT = new Pose(CENTER_TO_BACK_INCH, CENTER_TO_SIDE_INCH, Math.toRadians(0));
+    public static Pose BLUE_ALLIANCE_FAR_LEFT = new Pose(CENTER_TO_FRONT_INCH, CENTER_TO_SIDE_INCH, Math.PI);
+    public static Pose BLUE_ALLIANCE_FAR_RIGHT = new Pose(CENTER_TO_FRONT_INCH, GAME_FIELD_LENGTH_INCH - CENTER_TO_SIDE_INCH, Math.PI);
+    public static Pose BLUE_ALLIANCE_CLOSE_LEFT = new Pose(GAME_FIELD_LENGTH_INCH - CENTER_TO_BACK_INCH, CENTER_TO_SIDE_INCH, Math.PI);
+    public static Pose BLUE_ALLIANCE_CLOSE_RIGHT = new Pose(GAME_FIELD_LENGTH_INCH - CENTER_TO_BACK_INCH, GAME_FIELD_LENGTH_INCH - CENTER_TO_SIDE_INCH, Math.PI);
+
     public static boolean useFusedLocalization = false;
     public static PoseVelocityProcessModel.Config fusionProcessModelConfig =
             PoseVelocityProcessModel.Config.defaults();
@@ -61,6 +74,7 @@ public class Constants {
             c.backRightDirection.set(DcMotorSimple.Direction.FORWARD);
         }
     );
+    //swaped
     public static double vx = 84.5;//2.3;
     public static double vy = 86.675; // 6
     public static OctoQuadConfig localizerConfig = new OctoQuadConfig(c -> {
@@ -75,7 +89,6 @@ public class Constants {
         c.globalDistanceUnit.set(DistanceUnit.INCH);
         c.offsetUnits.set(DistanceUnit.MM);
         c.i2cRecoveryMode.set(OctoQuad.I2cRecoveryMode.MODE_1_PERIPH_RST_ON_FRAME_ERR);
-        c.localizerVelocityIntervalMS.set(35);
         c.headingScalar.set(1.02750014857118422);//1.0284592570209024
     });
 

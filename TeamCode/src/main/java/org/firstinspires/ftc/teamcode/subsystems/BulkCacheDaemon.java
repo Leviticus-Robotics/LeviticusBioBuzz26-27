@@ -15,7 +15,7 @@ public class BulkCacheDaemon extends EventManager<BulkCacheDaemon.Event> {
     }
 
     private final List<LynxModule> modules;
-    private final static long CACHE_DURATION = 10_000_000;
+    private final static long CACHE_DURATION = 20_000_000;
     private long next = System.nanoTime();
 
     public BulkCacheDaemon(Context ctx) {

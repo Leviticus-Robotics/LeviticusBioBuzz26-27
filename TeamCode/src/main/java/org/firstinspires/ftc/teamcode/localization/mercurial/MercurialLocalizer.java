@@ -15,7 +15,7 @@ import java.util.Map;
 
 public class MercurialLocalizer extends EventManager<MotionState> implements Localizer {
     private final Localizer localizer;
-    private static final long CACHE_DURATION_NANOS = 18_000_000L; // 10 milliseconds
+    private static final long CACHE_DURATION_NANOS = 20_000_000L; // 10 milliseconds
     private long nextNanos = System.nanoTime();
 
     public MercurialLocalizer(@NonNull Localizer localizer) {

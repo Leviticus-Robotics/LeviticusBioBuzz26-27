@@ -12,7 +12,7 @@ public class MathFunctions {
         while(val < 0){
             val += Math.PI * 2;
         }
-        while(val > 2 * Math.PI){
+        while(val >= 2 * Math.PI){
             val -= Math.PI * 2;
         }
         return val;

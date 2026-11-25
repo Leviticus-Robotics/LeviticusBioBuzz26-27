@@ -1,4 +1,6 @@
-package org.firstinspires.ftc.teamcode.robot;
+package org.firstinspires.ftc.teamcode.competition;
+
+import org.firstinspires.ftc.teamcode.robot.FullSystemsTeleOp;
 
 import dev.frozenmilk.dairy.mercurial.ftc.MercurialFTC;
 

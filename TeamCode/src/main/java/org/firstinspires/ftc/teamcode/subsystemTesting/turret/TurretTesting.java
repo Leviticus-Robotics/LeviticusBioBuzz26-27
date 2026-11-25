@@ -11,6 +11,7 @@ import com.qualcomm.hardware.lynx.LynxModule;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.helper.AngleHelper;
 import org.firstinspires.ftc.teamcode.sensor.TurretEncoder;
+import org.firstinspires.ftc.teamcode.subsystems.BulkCacheDaemon;
 import org.firstinspires.ftc.teamcode.subsystems.Turret;
 import org.firstinspires.ftc.teamcode.util.Angle;
 
@@ -33,26 +34,20 @@ public class TurretTesting {
     public static Angle testAngle3 = Angle.fromDegrees(135);
     public static Angle testAngle4 = Angle.fromDegrees(90);
     public static Angle testAngle5 = Angle.fromDegrees(180);
-    public static double testPosition = 0.5;
-    public static boolean useBulkReading = false;
+    public static double testPosition = 0;
 
     //plug bounds in flower wedge state machine
     public static MercurialFTC.RegisterableProgram teleOp() {
         return MercurialFTC.teleop(ctx -> {
             Turret turret = new Turret(ctx, true);
             TurretEncoder turretEncoder = new TurretEncoder(ctx);
+            BulkCacheDaemon bulkCacheDaemon = new BulkCacheDaemon(ctx);
             Telemetry.Item absoluteRawEncoderPos = ctx.telemetry().addData("Absolute Raw: ", "unknown");
-            Telemetry.Item incrmentalRawEncoderPos = ctx.telemetry().addData("Incremental Raw: ", "unknown");
+            Telemetry.Item incrementalRawEncoderPos = ctx.telemetry().addData("Incremental Raw: ", "unknown");
             Telemetry.Item absoluteCorrectEncoder = ctx.telemetry().addData("Absolute Correct: ", "unknown");
             Telemetry.Item incrementalCorrectEncoder = ctx.telemetry().addData("Incremental Correct: ", "unknown");
             Telemetry.Item servoSetPosition = ctx.telemetry().addData("Servo Positions: ", "unknown");
 
-            List<LynxModule> allHubs = ctx.hardwareMap().getAll(LynxModule.class);
-            if(useBulkReading){
-                for (LynxModule hub : allHubs) {
-                    hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
-                }
-            }
 
             turretEncoder.addHandler(event -> {
                 if(event.getAngleType() == AngleHelper.AngleType.Absolute){
@@ -61,14 +56,11 @@ public class TurretTesting {
                 }
                 else{
                     turret.updateIncrementalAngle(event.getAngle());
-                    incrmentalRawEncoderPos.setValue(event.getAngle().toDegrees());
+                    incrementalRawEncoderPos.setValue(event.getAngle().toDegrees());
                 }
 
                 return EventManager.EventHandled.ok();
             });
-
-
-//            ctx.telemetry().addLine("Left Bumper to set Intake Test Angle");
 
 
 
@@ -122,11 +114,6 @@ public class TurretTesting {
 
             loop(
                     exec(() -> {
-                        if (useBulkReading) {
-                            for (LynxModule hub : allHubs) {
-                                hub.clearBulkCache();
-                            }
-                        }
                         absoluteCorrectEncoder.setValue(turret.currentAbsolutePosition().toDegrees());
                         incrementalCorrectEncoder.setValue(turret.currentIncrementalPosition().toDegrees());
                         servoSetPosition.setValue(turret.servoLeft.get());

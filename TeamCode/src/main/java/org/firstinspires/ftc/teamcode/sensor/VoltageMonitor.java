@@ -12,22 +12,23 @@ public class VoltageMonitor extends EventManager<Double> {
     private VoltageSensor sensor;
     boolean hasReadSensors;
     double lastSensorReadTime;
-    public double SENSOR_UPDATE_INTERVAL_MS = 20;
-
+    private static final long CACHE_DURATION_NANOS = 20_000_000L;
+    private long nextNanos = System.nanoTime();
     public VoltageMonitor(Context ctx){
         sensor = ctx.hardwareMap().voltageSensor.iterator().next();
     }
 
     @Override
     protected void eventSource(){
-        long currTime = System.currentTimeMillis();
-        if(!hasReadSensors || currTime - lastSensorReadTime >= SENSOR_UPDATE_INTERVAL_MS) {
+        long currTime = System.nanoTime();
+        if (currTime >= nextNanos) {
             lastSensorReadTime = currTime;
             hasReadSensors = true;
             double currentVoltage = sensor.getVoltage();
             if (currentVoltage > 0) {
                 notify(currentVoltage);
             }
+            nextNanos = System.nanoTime() + CACHE_DURATION_NANOS;
         }
 
     }

@@ -82,12 +82,12 @@ public class TransferSensorsTest {
 
                     EventManager.Handler<GamepadD.Delta> intakeTransferHandler =
                         GamepadD.gamepad1Handler(event -> {
-                            if(setManualIntakeTransfer) {
+                            if(event.squareWasPressed()) {
                                 intake.fixedPower(event.rightStickY());
                                 transfer.fixedPower(event.rightStickY());
-                            } else{
+                            } else if(event.circleWasPressed()){
 //                                intake.runPowerTillDetection(1);
-                                intake.fixedPower(1);
+                                intake.runPowerTillDetection(1);
                                 transfer.runPowerTillDetection(1);
                             }
 

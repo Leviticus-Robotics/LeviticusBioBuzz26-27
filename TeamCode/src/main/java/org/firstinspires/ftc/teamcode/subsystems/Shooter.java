@@ -39,7 +39,7 @@ public class Shooter extends SwitchedStateMachine {
     public MotorEx shooterRight; // motor wire is right
     ServoEx hoodServo;
     Channel<MotionState> motionStates = linkedSingleChannel();
-    public static double[] pidCoefficients = new double[] {0.003, 0.0, 0.0};
+    public static double[] pidCoefficients = new double[] {0.0006, 0.0, 0.0};
     public static double[] feedforwardCoefficients = new double[]{0.0325, 0.00037090, 0};
     public static boolean usePIDCoefficients = true;
     public static boolean useFeedforwardCoefficients = true;
@@ -49,10 +49,11 @@ public class Shooter extends SwitchedStateMachine {
 
 //    public static boolean DIRECTION_REVERSE = false;
 
-    public static Pose AIM_BLUE_LEFT = new Pose(141.5-61, 55);
-    public static Pose AIM_BLUE_RIGHT = new Pose(141.5-61, 67);
-    public static Pose AIM_RED_RIGHT = new Pose( 61, 55);
-    public static Pose AIM_RED_LEFT = new Pose(61, 67);
+    public static Pose AIM_BLUE_LEFT = new Pose(84, 53);
+    public static Pose AIM_BLUE_RIGHT = new Pose(84, 141.5-53);
+    public static Pose AIM_RED_LEFT = new Pose(56 - 3, 141.5-53);
+    public static Pose AIM_RED_RIGHT_1 = new Pose( 56 - 3, 53);
+    public static Pose AIM_RED_RIGHT_2 = new Pose(56 + 3, 53);
     public double currentVoltage;
     private double currentTargetVelocity;//velocity that is currently being sent to the motors
     private double shootingTargetVelocity;//desired velocity for shooting (not default velocity)
@@ -70,6 +71,9 @@ public class Shooter extends SwitchedStateMachine {
     //This is for close side, far side is just the opposite but uses the same constants
     public static double[] WITHIN_SHOOTING_RANGE = new double[]{1, 10, -1, 154};
     public static double DEFAULT_VELOCITY = 800; // ticks/sec -> this is the velocity the shooter will go to when we don't need to shoot
+    public static double angle1Rad;
+    public static double deltaY;
+    public static double deltaX;
 
     public Shooter(Context ctx){
         startLine = ctx.telemetry().addLine("Shooter");
@@ -117,11 +121,11 @@ public class Shooter extends SwitchedStateMachine {
         public InterpLUT distToKCorrection;
         public InterpLUT distToHoodPos;
         public static double[] distances =           new double[]{20,   30,   40,   50,   60,   70,  80};
-        public static double[] velocities =          new double[]{1400, 1440, 1460, 1480, 1500, 1520, 1540};
+        public static double[] velocities =          new double[]{1380, 1400, 1420, 1440, 1480, 1520, 1540};
         public static double[] velCorrectionFactor = new double[]{0.4, 0.5, 0.6,  0.54, 0.85, 0.9,  0.96}; // take time in the air and then subtract a bit
         public static double[] hoodPositions =       new double[]{0.5, 0.5,  0.5,  0.5,  0.5, 0.5,  0.5};
         public static int iterations = 10;
-        public static double robotHeadingAimCorrectionFactor = -0;
+        public static double robotHeadingAimCorrectionFactor = 0;
         public AimCalculator() {
             distToVel = new InterpLUT();
             distToKCorrection = new InterpLUT();
@@ -153,8 +157,7 @@ public class Shooter extends SwitchedStateMachine {
         public double[] targetPowersHeading(Pose pose, Vector velocity, Pose targetPose) {
             Vector2D gap = targetPose.minus(pose).toVector2D();
             Vector2D dirParallel = gap.normalized();
-            Vector2D dirPerp = Vector2D.cartesian(dirParallel.x(), dirParallel.y());
-            dirPerp.rotate(-Math.PI / 2);
+            Vector2D dirPerp = dirParallel.rotate(-Math.PI / 2);
             double velParallel = velocity.dot(dirParallel.toVector()); // component parallel to line from robot to target pose
             double velPerp = velocity.dot(dirPerp.toVector()); // left is negative, right is positive
 
@@ -182,7 +185,7 @@ public class Shooter extends SwitchedStateMachine {
 
             return new double[]{
                     distToVel.get(targetDist),
-                    MathFunctions.normalizeAngle(targetPose.minus(pose).heading() + headingCorrection),
+                    getShootHeadingTurret(pose, targetPose, new Pose(0, 0, 0)),
                     distToHoodPos.get(targetDist)
             };
         }
@@ -205,7 +208,7 @@ public class Shooter extends SwitchedStateMachine {
                     MotionState motionState = motionStates.query();//query to keep for now
                     if(motionState != null) {
                         Pose robotPose = motionState.pose();
-                        Pose targetShootPose = getPose(alliance, side);
+                        Pose targetShootPose = getPose1(alliance, side);
 
                             double[] solution = aimCalculator.targetPowersHeading(robotPose, motionState.velocity().toVector(), targetShootPose);
                             double targetVelocity = solution[0];
@@ -227,17 +230,24 @@ public class Shooter extends SwitchedStateMachine {
     }
 
     //rad
-    public double getTargetAngle(Pose position, Pose target) {
-        double deltaY = target.y() - position.y();
-        double deltaX = target.x() - position.x();
+    public static double getTargetAngle(Pose position, Pose target) {
+        deltaY = target.y() - position.y();
+        deltaX = target.x() - position.x();
         double heading = Math.atan2(deltaY, deltaX);
         return MathFunctions.normAngle0To2PI(heading);
     }
     //rad
-    public Angle getShootHeadingTurret(Pose robotPose, Pose targetPose) {
-        double angle1 = getTargetAngle(robotPose, targetPose);
-        double deltaTheta = angle1 - robotPose.heading();
-        return Angle.fromRadians(angle1 + deltaTheta * AimCalculator.robotHeadingAimCorrectionFactor).wrap();//wrap -PI to PI for turret
+
+    public static double getShootHeadingTurret(Pose robotPose, Pose targetPose1, Pose targetPose2) {
+        angle1Rad = getTargetAngle(robotPose, targetPose1);
+        double angle2Rad = getTargetAngle(robotPose, targetPose2);
+        double averagedAngleRad = MathFunctions.normAngle0To2PI((angle1Rad + angle2Rad) / 2.0);
+
+        //normalizes to -PI to PI
+        double deltaTheta = MathFunctions.normalizeAngle(
+                averagedAngleRad - robotPose.heading()
+        );
+        return MathFunctions.normalizeAngle(deltaTheta + deltaTheta * AimCalculator.robotHeadingAimCorrectionFactor);//wrap -PI to PI for turret
     }
     public void lutSOTM(Alliance alliance, HiveTargetSide side){
         switchTo(lutSOTMMode(alliance, side));
@@ -263,10 +273,11 @@ public class Shooter extends SwitchedStateMachine {
                     MotionState motionState = motionStates.query();
                     if(motionState != null) {
                         Pose robotPose = motionState.pose();
-                        Pose targetShootPose = getPose(alliance, side);
+                        Pose control1 = getPose1(alliance, side);
+                        Pose control2 = getPose2(alliance, side);
 
                         distanceFromGoal = MathUtils.clamp(
-                                robotPose.distance(targetShootPose),
+                                (robotPose.distance(control1) + robotPose.distance(control2)) / 2.0,
                                 AimCalculator.distances[0],
                                 AimCalculator.distances[AimCalculator.distances.length - 1]
                         );
@@ -275,9 +286,9 @@ public class Shooter extends SwitchedStateMachine {
                         shootingTargetVelocity = targetVelocity; // need to update
                         currentTargetVelocity = useDefaultVelocity ? DEFAULT_VELOCITY : targetVelocity;
                         if(targetHeadingChannel != null) {
-                            Angle targetHeading = getShootHeadingTurret(robotPose, targetShootPose);
+                            Angle targetHeading1 = Angle.fromRadians(getShootHeadingTurret(robotPose, control1, control2));
                             //intake -PI to PI relative angle
-                            targetHeadingChannel.send(targetHeading);
+                            targetHeadingChannel.send(targetHeading1.wrap());
                         }
                         //pass in current voltage as long as value is valid
                         setShooter(currentTargetVelocity);
@@ -367,12 +378,13 @@ public class Shooter extends SwitchedStateMachine {
     private Mode fixedPowerMode(double power){//parametrized so it keeps holding the velocity
         return entranceMode(
                 from -> {
-                    stateTelemetry.setValue("Fixed Power (" + power + ")");
+                    double clampedPower = Math.max(Math.min(power, 1), 0);
+                    stateTelemetry.setValue("Fixed Power (" + power + " -> " + clampedPower +")");
                     updateTelemetryAll();
                     shooterLeft.setRunMode(Motor.RunMode.RawPower);
                     shooterRight.setRunMode(Motor.RunMode.RawPower);
-                    shooterLeft.set(power);
-                    shooterRight.set(power);
+                    shooterLeft.set(clampedPower);
+                    shooterRight.set(clampedPower);
 //                    setHood(hoodP);
                 }
         );
@@ -387,11 +399,19 @@ public class Shooter extends SwitchedStateMachine {
         switchTo(off);
     }
 
-    public Pose getPose(Alliance alliance, HiveTargetSide side){
+    public Pose getPose1(Alliance alliance, HiveTargetSide side){
         if(alliance == Alliance.BLUE){
             return side == HiveTargetSide.Right ? AIM_BLUE_RIGHT : AIM_BLUE_LEFT;
         } else{
-            return side == HiveTargetSide.Right ? AIM_RED_RIGHT : AIM_RED_LEFT;
+            return side == HiveTargetSide.Right ? AIM_RED_RIGHT_1 : AIM_RED_LEFT;
+        }
+    }
+
+    public Pose getPose2(Alliance alliance, HiveTargetSide side){
+        if(alliance == Alliance.BLUE){
+            return side == HiveTargetSide.Right ? AIM_BLUE_RIGHT : AIM_BLUE_LEFT;
+        } else{
+            return side == HiveTargetSide.Right ? AIM_RED_RIGHT_2 : AIM_RED_LEFT;
         }
     }
 
