@@ -18,11 +18,11 @@ import dev.frozenmilk.dairy.mercurial.ftc.Context;
  */
 @Config
 public class Transfer extends MotorSubsystem {
-    public static double[] pidCoefficients = new double[] {1.0, 0.0, 0.0};
+    public static double[] pidCoefficients = new double[] {0.001, 0.0, 0.0};
     public static double[] feedforwardCoefficients = new double[]{0, 0, 0};
-    public static boolean usePIDCoefficients = false;
-    public static boolean useFeedforwardCoefficients = false;
-    public static boolean voltageCompesnation = false;
+    public static boolean usePIDCoefficients = true;
+    public static boolean useFeedforwardCoefficients = true;
+    public static boolean voltageCompesnation = true;
 
     boolean breaker1Detection = false;
     boolean breaker2Detection = false;
@@ -34,6 +34,7 @@ public class Transfer extends MotorSubsystem {
     private Telemetry.Item extraStateTelemetry;
     private Telemetry.Item transferPowerTelemetry;
     private Telemetry.Line endBreakLine;
+
 
     public Transfer(Context ctx){
         startLine = ctx.telemetry().addLine("Transfer");

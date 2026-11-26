@@ -23,45 +23,25 @@ public abstract class MotorSubsystem extends SwitchedStateMachine{
     protected Telemetry.Item modeTelemtry;
     protected Mode offMode;
     protected double currentVoltage;
-    public static boolean VOLTAGE_COMPENSATION = false;
     public enum VelocityStatus{
         AtTarget
     }
 
-    protected Mode fixedVelocityMode(double targetVelocity, double tolerance, Channel<VelocityStatus> resultChannel){
-        boolean[] notified = new boolean[1];
+    protected Mode fixedVelocityMode(double targetVelocity){
         return mode(self -> {
                     modeTelemtry.setValue("Fixed Velocity (" + targetVelocity + ")");
                     motor.setRunMode(MotorEx.RunMode.VelocityControl);
                     motor.set(targetVelocity, currentVoltage > 0 && useVoltageCompensation() ? currentVoltage : MotorEx.REFERENCE_VOLTAGE);
-                    if (resultChannel != null && notified[0] == false) {
-                        if (isAtVelocity(targetVelocity, tolerance)) {
-                            notified[0] = true;
-                            resultChannel.sendIfEmpty(VelocityStatus.AtTarget);
-                        }
-                    }
                     return self;
                 });
     }
 
     public boolean useVoltageCompensation(){
-        return false;
+        return true;
     }
 
     public void fixedVelocity(double targetVelocity){
-        switchTo(fixedVelocityMode(targetVelocity, 0, null));
-    }
-
-    public void fixedVelocity(double targetVelocity, double tolerance) {
-        switchTo(fixedVelocityMode(targetVelocity, tolerance, null));
-    }
-
-    public void fixedVelocity(double targetVelocity, double tolerance, Channel<VelocityStatus> resultChannel) {
-        if (resultChannel != null) {
-            switchTo(fixedVelocityMode(targetVelocity, tolerance, resultChannel));
-        } else{
-            switchTo(fixedVelocityMode(targetVelocity, tolerance, null));
-        }
+        switchTo(fixedVelocityMode(targetVelocity));
     }
 
     protected Mode fixedPowerMode(double power){//parametrized so it keeps holding the velocity
@@ -104,9 +84,7 @@ public abstract class MotorSubsystem extends SwitchedStateMachine{
     }
 
     public void updateVoltage(double voltage){
-        if(voltage > 0){
-            this.currentVoltage = voltage;
-        }
+        this.currentVoltage = voltage;
     }
 
 }

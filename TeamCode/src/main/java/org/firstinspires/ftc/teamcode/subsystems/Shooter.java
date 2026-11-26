@@ -48,10 +48,11 @@ public class Shooter extends SwitchedStateMachine {
     public double distanceFromGoal;
 
 //    public static boolean DIRECTION_REVERSE = false;
-
+    public static Pose OFFSET_1;
     public static Pose AIM_BLUE_LEFT = new Pose(84, 53);
     public static Pose AIM_BLUE_RIGHT = new Pose(84, 141.5-53);
-    public static Pose AIM_RED_LEFT = new Pose(56 - 3, 141.5-53);
+    public static Pose AIM_RED_LEFT_1= new Pose(56 - 3, 141.5-53);
+    public static Pose AIM_RED_LEFT_2 = new Pose( 56 + 3, 141.5-53);
     public static Pose AIM_RED_RIGHT_1 = new Pose( 56 - 3, 53);
     public static Pose AIM_RED_RIGHT_2 = new Pose(56 + 3, 53);
     public double currentVoltage;
@@ -233,21 +234,41 @@ public class Shooter extends SwitchedStateMachine {
     public static double getTargetAngle(Pose position, Pose target) {
         deltaY = target.y() - position.y();
         deltaX = target.x() - position.x();
-        double heading = Math.atan2(deltaY, deltaX);
-        return MathFunctions.normAngle0To2PI(heading);
+//        double heading = Math.atan2(deltaY, deltaX);
+//        return MathFunctions.normAngle0To2PI(heading);
+        return Math.atan2(deltaY, deltaX);
     }
     //rad
 
     public static double getShootHeadingTurret(Pose robotPose, Pose targetPose1, Pose targetPose2) {
-        angle1Rad = getTargetAngle(robotPose, targetPose1);
-        double angle2Rad = getTargetAngle(robotPose, targetPose2);
-        double averagedAngleRad = MathFunctions.normAngle0To2PI((angle1Rad + angle2Rad) / 2.0);
-
-        //normalizes to -PI to PI
-        double deltaTheta = MathFunctions.normalizeAngle(
-                averagedAngleRad - robotPose.heading()
+        //control point angles (-pi to pi)
+        double angle1 = Math.atan2(
+                targetPose1.y() - robotPose.y(),
+                targetPose1.x() - robotPose.x()
         );
-        return MathFunctions.normalizeAngle(deltaTheta + deltaTheta * AimCalculator.robotHeadingAimCorrectionFactor);//wrap -PI to PI for turret
+
+        double angle2 = Math.atan2(
+                targetPose2.y() - robotPose.y(),
+                targetPose2.x() - robotPose.x()
+        );
+
+        //Convert to Pedro's field-heading convention
+        angle1 = MathFunctions.normAngle0To2PI(angle1);
+        angle2 = MathFunctions.normAngle0To2PI(angle2);
+
+        double angleDifference =
+                MathFunctions.normalizeAngle(angle2 - angle1);
+
+        double averagedFieldBearing =
+                MathFunctions.normAngle0To2PI(
+                        angle1 + angleDifference / 2.0
+                );
+
+        //robotpose heading also in 0 to 2pi, -> convert delta theta to -PI to PI, thats the turret
+        double deltaTheta = MathFunctions.normalizeAngle(averagedFieldBearing - robotPose.heading());
+
+        //this final angle is intake-relative turret angle (what angle should the turret go to, assuming 0 is same dir as intake for the turret)
+        return MathFunctions.normalizeAngle(deltaTheta + deltaTheta * AimCalculator.robotHeadingAimCorrectionFactor);
     }
     public void lutSOTM(Alliance alliance, HiveTargetSide side){
         switchTo(lutSOTMMode(alliance, side));
@@ -403,7 +424,7 @@ public class Shooter extends SwitchedStateMachine {
         if(alliance == Alliance.BLUE){
             return side == HiveTargetSide.Right ? AIM_BLUE_RIGHT : AIM_BLUE_LEFT;
         } else{
-            return side == HiveTargetSide.Right ? AIM_RED_RIGHT_1 : AIM_RED_LEFT;
+            return side == HiveTargetSide.Right ? AIM_RED_RIGHT_1 : AIM_RED_LEFT_1;
         }
     }
 
@@ -411,7 +432,7 @@ public class Shooter extends SwitchedStateMachine {
         if(alliance == Alliance.BLUE){
             return side == HiveTargetSide.Right ? AIM_BLUE_RIGHT : AIM_BLUE_LEFT;
         } else{
-            return side == HiveTargetSide.Right ? AIM_RED_RIGHT_2 : AIM_RED_LEFT;
+            return side == HiveTargetSide.Right ? AIM_RED_RIGHT_2 : AIM_RED_LEFT_2;
         }
     }
 

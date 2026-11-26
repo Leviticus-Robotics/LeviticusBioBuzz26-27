@@ -11,6 +11,8 @@ import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitFor
 import static dev.frozenmilk.dairy.mercurial.continuations.Continuations.waitUntil;
 import static org.firstinspires.ftc.teamcode.constants.Constants.*;
 
+import android.hardware.Sensor;
+
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.math.Pose;
@@ -21,6 +23,7 @@ import org.firstinspires.ftc.teamcode.game.Alliance;
 import org.firstinspires.ftc.teamcode.game.HiveTargetSide;
 import org.firstinspires.ftc.teamcode.helper.AngleHelper;
 import org.firstinspires.ftc.teamcode.helper.BallCounter;
+import org.firstinspires.ftc.teamcode.helper.SensorEvent;
 import org.firstinspires.ftc.teamcode.localization.mercurial.MercurialLocalizer;
 import org.firstinspires.ftc.teamcode.sensor.HiveSideHelper;
 import org.firstinspires.ftc.teamcode.sensor.IntakeBallSensors;
@@ -30,6 +33,7 @@ import org.firstinspires.ftc.teamcode.sensor.VoltageMonitor;
 import org.firstinspires.ftc.teamcode.subsystems.BulkCacheDaemon;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.FlowerWedge;
+import org.firstinspires.ftc.teamcode.subsystems.GobildaLightOutputs;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Shooter;
 import org.firstinspires.ftc.teamcode.subsystems.Transfer;
@@ -51,8 +55,9 @@ public class TeleOpManual {
             .withName("TeleOp Blue Manual")
             .withGroup("Competition");
     public static double fixedIntakePower = 1;
-    public static double fixedTransferPower = 0.75;
+    public static double fixedTransferPower = 0.5;
 
+    public static double transferTargetVelocity = 2000;
     public static double shootingTolerance = 50;//ticks per second
     public static double turretToleranceRad = Math.toRadians(5);
     public static double turningSensitivityMultiplier = 0.6;
@@ -93,6 +98,7 @@ public class TeleOpManual {
                     FlowerWedge flowerWedge = new FlowerWedge(ctx);
                     HiveSideHelper hiveSideHelper = new HiveSideHelper(startSide);
                     BulkCacheDaemon bulkCacheDaemon = new BulkCacheDaemon(ctx);
+                    GobildaLightOutputs leds = new GobildaLightOutputs(ctx);
 
                     ctx.telemetry().addLine("-------------------------------");
                     Telemetry.Item transfer1DetectedTelemetry = ctx.telemetry().addData(
@@ -185,7 +191,32 @@ public class TeleOpManual {
                             shooter,
                             shooter::updateVoltage
                     ));
-
+                    voltageMonitor.addHandler(EventManager.forwardTo(
+                            transfer,
+                            transfer::updateVoltage
+                    ));
+                    EventManager.Handler<SensorEvent> changeLeds= evt -> {
+                        ballCounter.updateCount();
+                        int numBalls = ballCounter.totalBalls();
+                        switch(numBalls){
+                            case 4:
+                                leds.setSolidColor(GobildaLightOutputs.ColorMode.Green);
+                                break;
+                            case 3:
+                                leds.setSolidColor(GobildaLightOutputs.ColorMode.Orange);
+                                break;
+                            case 2:
+                                leds.setSolidColor(GobildaLightOutputs.ColorMode.Blue);
+                                break;
+                            case 1:
+                                leds.setSolidColor(GobildaLightOutputs.ColorMode.Red);
+                                break;
+                            default:
+                                leds.setSolidColor(GobildaLightOutputs.ColorMode.Black);
+                                break;
+                        }
+                        return EventManager.EventHandled.ok();
+                    };
                     transferSensors.addHandler(event -> {
                         if(event.sensorNum == 1){
                             transfer.updateBreaker1(event.interrupted);
@@ -200,7 +231,7 @@ public class TeleOpManual {
                         ballCounterTelemetry.setValue(ballCounter.totalBalls());
                         return EventManager.EventHandled.ok();
                     });
-
+                    transferSensors.addHandler(changeLeds);
                     intakeSensors.addHandler(event -> {
                         if(event.sensorNum == 1){
                             intake.updateIntake1(event.interrupted);
@@ -213,7 +244,7 @@ public class TeleOpManual {
                         ballCounterTelemetry.setValue(ballCounter.totalBalls());
                         return EventManager.EventHandled.ok();
                     });
-
+                    intakeSensors.addHandler(changeLeds);
 
                     hiveSideHelper.addHandler(event -> {
                         hiveTargetSideTelemetry.setValue(event);
@@ -226,11 +257,16 @@ public class TeleOpManual {
                         boolean waiting = false;
                         boolean feeding = false;
                     }
+                    class ManualShooting{
+                        boolean waiting = false;
+                        boolean feeding = false;
+                    }
 
                     class DriveSettings {
                         boolean fieldCentric = true;
                     }
                     AssitedShooting assistedShootingSettings = new AssitedShooting();
+                    ManualShooting manualShootingSettings = new ManualShooting();
 
                     DriveSettings driveSettings = new DriveSettings();
                     EventManager.Handler<GamepadD.Delta> drivetrainHandler =
@@ -253,25 +289,33 @@ public class TeleOpManual {
                                     {   //reset assisted
                                         assistedShootingSettings.waiting = false;
                                         assistedShootingSettings.feeding = false;
+                                        manualShootingSettings.waiting = true;
+                                        manualShootingSettings.feeding = false;
                                         transferGate.setOpen();
-                                        intake.fixedPower(1);
-                                        transfer.fixedPower(fixedTransferPower);
+                                        intake.fixedPower(0);
+                                        transfer.fixedPower(0);
                                     }
                                     else if(event.rightBumperWasPressed()) {//intake
                                         assistedShootingSettings.waiting = false;
                                         assistedShootingSettings.feeding = false;
+                                        manualShootingSettings.waiting = false;
+                                        manualShootingSettings.feeding = false;
                                         intake.runPowerTillDetection(fixedIntakePower);
-                                        transfer.runPowerTillDetection(fixedTransferPower);
+                                        transfer.runVelocityTillDetection(transferTargetVelocity);
                                         transferGate.setClosed();
                                     } else if(event.rightTriggerPassedOver(0.2)){//reverse intake
                                         assistedShootingSettings.waiting = false;
                                         assistedShootingSettings.feeding = false;
+                                        manualShootingSettings.waiting = false;
+                                        manualShootingSettings.feeding = false;
                                         intake.fixedPower(-1);
                                         transfer.fixedPower(-1);
                                         transferGate.setOpen();
                                     } else if(event.dpadLeftWasPressed()){//assisted shooting: wait for criteria bfore shooting
                                         assistedShootingSettings.waiting = true;
                                         assistedShootingSettings.feeding = false;
+                                        manualShootingSettings.waiting = false;
+                                        manualShootingSettings.feeding = false;
                                         shooter.setUseDefaultVelocity(false);
                                         transferGate.setClosed();
                                         intake.fixedPower(0);
@@ -282,8 +326,11 @@ public class TeleOpManual {
                                             || event.rightTriggerPassedUnder(0.2)
                                             || event.dpadLeftWasReleased()
                                     ){
+//                                     if(!event.leftBumper() && !event.rightBumper() && !(event.rightTrigger() > 0.2) && !event.dpadLeft()){
                                         assistedShootingSettings.waiting = false;
                                         assistedShootingSettings.feeding = false;
+                                        manualShootingSettings.waiting = false;
+                                        manualShootingSettings.feeding = false;
                                         intake.fixedPower(0);
                                         transfer.fixedPower(0);
                                         transferGate.setClosed();
@@ -291,6 +338,8 @@ public class TeleOpManual {
                                     return EventManager.EventHandled.ok();
                                 }
                             );
+                    //intake.fixedPower(0);
+            //                                        transfer.fixedPower(0);
 
 
                     EventManager.Handler<GamepadD.Delta> flowerMechHandler =
@@ -391,7 +440,8 @@ public class TeleOpManual {
                                                 || localizer.pose().y() < 141.5/2.0 && alliance == Alliance.RED,
                                         exec(() -> hiveSideHelper.setSide(HiveTargetSide.Right)),
                                         exec(()-> hiveSideHelper.setSide(HiveTargetSide.Left))
-                                )
+                                ),
+                                waitFor.bind(seconds(0.10))
                             )
                     ).spawnable().spawnLink();
 
@@ -417,12 +467,33 @@ public class TeleOpManual {
                                                 assistedShootingSettings.feeding = true;
                                                transferGate.setOpen();
                                                intake.fixedPower(1);
-                                               transfer.fixedPower(1);
+                                               transfer.fixedVelocity(transferTargetVelocity);
                                             }
                                    ),
-                                   waitFor.bind(seconds(0.02))
+                                   waitFor.bind(seconds(0.10))
                            )
                    )).spawnable().spawnLink();
+
+                   //handles the anual shooting
+                    loop(
+                            //handles the shooter default velocity to turn off default if more than 1 ball, doing assisted shooting, or open gate
+                            ifThen(
+                                    ()-> manualShootingSettings.waiting && !manualShootingSettings.feeding,
+                                    sequence(
+                                            waitFor.bind(seconds(0.2)),
+                                            ifThen(
+                                                    () -> manualShootingSettings.waiting,
+                                                    exec(()-> {
+                                                        manualShootingSettings.feeding = true;
+                                                        transfer.fixedVelocity(transferTargetVelocity);
+                                                        intake.fixedPower(1);
+                                                    })
+                                            )
+                                    )
+                            )
+                    ).spawnable().spawnLink();
+
+
                     //update telemetry
                     loop(
                             sequence(
@@ -435,15 +506,18 @@ public class TeleOpManual {
                                     exec(()-> pollDurationTelemetry.setValue(ctx.scheduler().getPollDurationSeconds())),
                                     exec(()-> averageFiberTimeTelemetry.setValue(ctx.scheduler().getAverageFiberDurationSeconds())),
                                     exec(() -> FtcDashboard.getInstance().getTelemetry().addData("shooter vel", shooter.getVelocity())),
-                                    exec(() -> FtcDashboard.getInstance().getTelemetry().addData("Atan aim angle(deg)", Shooter.angle1Rad)),
-                                    exec(() -> FtcDashboard.getInstance().getTelemetry().addData("DeltaY", Shooter.deltaY)),
-                                    exec(() -> FtcDashboard.getInstance().getTelemetry().addData("DeltaX", Shooter.deltaX)),
+                                    exec(() -> FtcDashboard.getInstance().getTelemetry().addData("transfer vel", transfer.getVelocity())),
+//                                    exec(() -> FtcDashboard.getInstance().getTelemetry().addData("Atan aim angle(deg)", Shooter.angle1Rad)),
+//                                    exec(() -> FtcDashboard.getInstance().getTelemetry().addData("DeltaY", Shooter.deltaY)),
+//                                    exec(() -> FtcDashboard.getInstance().getTelemetry().addData("DeltaX", Shooter.deltaX)),
 //                                    exec(() -> FtcDashboard.getInstance().getTelemetry().addData("turret rel(deg)", turret.targetTurretAngle.toDegrees())),
                                     exec(() -> FtcDashboard.getInstance().getTelemetry().update()),
-                                    waitFor.bind(seconds(0.10))
+                                    waitFor.bind(seconds(0.20))
                             )
 
                     ).spawnable().spawnLink();
+
+
 
                     ctx.dropToScheduler();
                     return null;

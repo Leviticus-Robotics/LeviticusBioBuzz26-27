@@ -7,6 +7,8 @@ import androidx.annotation.NonNull;
 import com.qualcomm.robotcore.hardware.LED;
 import com.qualcomm.robotcore.hardware.Servo;
 
+import org.firstinspires.ftc.teamcode.constants.ConfigNames;
+
 import dev.frozenmilk.dairy.mercurial.ftc.Context;
 import dev.frozenmilk.dairy.mercurial.processes.Channel;
 import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
@@ -17,14 +19,18 @@ import dev.frozenmilk.dairy.mercurial.processes.SwitchedStateMachine;
  * #2) for reporting
  *
  */
-public class GobildaLightOutputs extends SwitchedStateMachine {
-    Servo led;
+public class GobildaLightOutputs extends SwitchedStateMachine{
+    Servo led1;
+    Servo led2;
+    Mode startMode;
 
     @NonNull
     @Override
     protected Mode init() {
-        return solidColor(ColorMode.Black);
+        return startMode;
     }
+
+
 
     public enum ColorMode{
         Black(0.0),
@@ -47,15 +53,20 @@ public class GobildaLightOutputs extends SwitchedStateMachine {
         }
     }
     public GobildaLightOutputs(Context ctx) {
-        led = ctx.hardwareMap().get(Servo.class, "lL");
-        led.setPosition(1);
-    }
-    private Mode solidColor(ColorMode color) {
-        return mode(self -> {
-            this.led.setPosition(color.getValue());
-            return self;
+        led1 = ctx.hardwareMap().get(Servo.class, ConfigNames.lightLeft);
+        led2 = ctx.hardwareMap().get(Servo.class, ConfigNames.lightRight);
+        startMode = entranceMode(self -> {
+            led1.setPosition(ColorMode.Black.getValue());
+            led2.setPosition(ColorMode.Black.getValue());
         });
     }
+    private Mode solidColor(ColorMode color) {
+        return entranceMode(self -> {
+            this.led1.setPosition(color.getValue());
+            this.led2.setPosition(color.getValue());
+        });
+    }
+
     public void setSolidColor(ColorMode color) {
         switchTo(solidColor(color));
     }
